@@ -245,12 +245,15 @@ src/
 ## Tests
 
 ```bash
-npm test        # 108 tests across 12 test files
+npm test        # 180 tests across 16 test files
 ```
 
 Test coverage includes:
-- **Unit tests** — modules, profiles, terminology, adapter routing, adapter factories
-- **Scenario tests** — all 7 service flows, service composition, full platform integration, per-unit overrides, describeService API
+- **Unit tests** — modules, profiles, terminology, adapter routing, adapter factories, gate check denials, edge cases
+- **Scenario tests** — all 8 service flows, service composition, full platform integration, per-unit overrides, describeService API
+- **Property tests** — terminology invariants, profile invariants, adapter factory invariants, gate check invariants, override invariants
+- **Performance tests** — flow execution timing, registry caching, adapter/platform creation benchmarks
+- **Security tests** — input validation, injection-like inputs, boundary checks, override isolation, action routing
 
 ## License
 
