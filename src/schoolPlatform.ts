@@ -3,29 +3,35 @@ import {
   createAdapterRegistry,
   createActionRegistry,
   createPlatform,
+  createServiceBridge,
 } from "@footprint/platform";
 import type {
   Platform,
   ProfileStore,
   TenantContext,
-  ActionResult,
-  MCPToolDefinition,
 } from "@footprint/platform";
 import { allSchoolModules } from "./modules/index.js";
 import { allSchoolProfiles, schoolTypeConfigs } from "./profiles/index.js";
 import { allSchoolCapabilities } from "./capabilities/index.js";
-import { allSchedulingAdapters, allFeeAdapters, schoolAdapterMappings } from "./adapters/index.js";
+import {
+  createSchedulingAdapters,
+  createFeeAdapters,
+  schoolAdapterMappings,
+} from "./adapters/index.js";
 import { allSchoolActions } from "./actions/index.js";
 import { createSchoolServiceRegistry } from "./flows/index.js";
-import type { SchoolServiceRegistry, SchoolServiceResult } from "./flows/index.js";
-import type { SchoolType, SchoolTypeConfig, SchoolRepository } from "./types.js";
+import type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription } from "./flows/index.js";
+import type {
+  SchoolType,
+  SchoolTypeConfig,
+  SchoolRepository,
+  UnitOverrideStore,
+  UnitOverrides,
+} from "./types.js";
+import { schoolTerminology } from "./terminology/schoolTerms.js";
 
 /**
  * A fully configured school platform.
- * Wraps the generic Platform with school-specific features:
- * - School type metadata (themes, service flags, module flags)
- * - Footprintjs service flows (enrollment, attendance, scheduling)
- * - School-specific adapter routing (scheduling patterns, fee models)
  */
 export type SchoolPlatform = Platform & {
   /** Get extended metadata for a school type */
@@ -38,6 +44,17 @@ export type SchoolPlatform = Platform & {
     actionId: string,
     input: Record<string, unknown>,
   ): Promise<SchoolServiceResult>;
+  /** Describe a service flow's stages for AI planning */
+  describeService(
+    actionId: string,
+    schoolType?: SchoolType,
+  ): ServiceDescription | undefined;
+  /** Describe all service flows */
+  describeAllServices(schoolType?: SchoolType): readonly ServiceDescription[];
+  /** Get per-unit overrides (if override store is configured) */
+  getUnitOverrides(unitId: string): Promise<UnitOverrides | undefined>;
+  /** Get term resolver that respects per-unit overrides */
+  getTermResolverWithOverrides(ctx: TenantContext): Promise<(key: string) => string>;
   /** Access the underlying service registry */
   serviceRegistry: SchoolServiceRegistry;
 };
@@ -45,8 +62,10 @@ export type SchoolPlatform = Platform & {
 export type SchoolPlatformConfig = {
   /** Profile store — maps unit IDs to school types */
   profileStore: ProfileStore;
-  /** Repository for data operations — injected into flows */
+  /** Repository for data operations — injected into flows and adapters */
   repository: SchoolRepository;
+  /** Optional per-unit override store */
+  overrideStore?: UnitOverrideStore;
 };
 
 /**
@@ -54,34 +73,11 @@ export type SchoolPlatformConfig = {
  *
  * This is the main entry point for SchoolFootprint. It:
  * 1. Creates a module registry with all school modules
- * 2. Creates an adapter registry with scheduling + fee adapters per school type
+ * 2. Creates an adapter registry with repo-backed scheduling + fee adapters
  * 3. Creates an action registry with all school actions
  * 4. Wires everything into a Platform via footprint-blueprint
  * 5. Adds school-specific service flows via footprintjs
- *
- * @example
- * ```ts
- * import { createSchoolPlatform, createMemoryProfileStore } from "school-footprint";
- *
- * const store = createMemoryProfileStore([
- *   { unitId: "dance-1", profileType: "dance", createdAt: "2024-01-01" },
- *   { unitId: "k12-1", profileType: "k12", createdAt: "2024-01-01" },
- * ]);
- *
- * const platform = createSchoolPlatform({
- *   profileStore: store,
- *   repository: myDatabaseRepo,
- * });
- *
- * // Use generic blueprint features
- * const tools = await platform.getAvailableActions(ctx); // MCP tools
- * const gate = await platform.gateCheck(ctx, ["scheduling"]); // feature gate
- * const t = await platform.getTermResolver(ctx); // "Period" → "Time Slot"
- *
- * // Use school-specific service flows
- * const result = await platform.executeServiceFlow(ctx, "enroll-student", { name: "Luna", dob: "2015-03-12" });
- * // → { status: "success", result: {...}, manifest: [...], narrative: [...] }
- * ```
+ * 6. Supports per-unit overrides for terminology, module toggles, and theme
  */
 export function createSchoolPlatform(config: SchoolPlatformConfig): SchoolPlatform {
   const registry = createModuleRegistry({
@@ -89,9 +85,13 @@ export function createSchoolPlatform(config: SchoolPlatformConfig): SchoolPlatfo
     profileTypes: [...allSchoolProfiles],
   });
 
+  // Create real adapter factories with repo access
+  const liveSchedulingAdapters = createSchedulingAdapters(config.repository);
+  const liveFeeAdapters = createFeeAdapters(config.repository);
+
   const adapterRegistry = createAdapterRegistry({
     capabilities: [...allSchoolCapabilities],
-    adapters: [...allSchedulingAdapters, ...allFeeAdapters],
+    adapters: [...liveSchedulingAdapters, ...liveFeeAdapters],
     mappings: [...schoolAdapterMappings],
   });
 
@@ -117,6 +117,38 @@ export function createSchoolPlatform(config: SchoolPlatformConfig): SchoolPlatfo
 
     supportedSchoolTypes() {
       return Object.freeze(["k12", "dance", "music", "kindergarten", "tutoring"] as const);
+    },
+
+    describeService(actionId, schoolType) {
+      return serviceRegistry.describeService(actionId, schoolType);
+    },
+
+    describeAllServices(schoolType) {
+      return serviceRegistry.describeAllServices(schoolType);
+    },
+
+    async getUnitOverrides(unitId) {
+      if (!config.overrideStore) return undefined;
+      return config.overrideStore.getOverrides(unitId);
+    },
+
+    async getTermResolverWithOverrides(ctx) {
+      const profileConfig = await basePlatform.resolveUnit(ctx);
+      const schoolType = profileConfig.profileType as SchoolType;
+      const overrides = config.overrideStore
+        ? await config.overrideStore.getOverrides(ctx.unitId)
+        : undefined;
+
+      return (key: string) => {
+        // Per-unit override takes priority
+        if (overrides?.terminologyOverrides?.[key]) {
+          return overrides.terminologyOverrides[key];
+        }
+        // Then school-type default
+        const entry = schoolTerminology[key as keyof typeof schoolTerminology];
+        if (!entry) return key;
+        return entry[schoolType] ?? entry.default ?? key;
+      };
     },
 
     async executeServiceFlow(ctx, actionId, input) {

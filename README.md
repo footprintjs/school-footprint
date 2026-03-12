@@ -39,28 +39,30 @@ Each module declares features, terminology, and seed data appropriate for the sc
 | Departments | yes | no | no | no | no |
 | Workflow | yes | no | no | no | no |
 
-### 5 School Profiles
+### 5 School Profiles (Unified Metadata)
 
-Each profile selects which modules are enabled and configures extended metadata:
+Each profile carries modules, roles, scheduling pattern, services, module flags, and theme in a single `defineProfile()` call — no split metadata:
 
 | Profile | Scheduling Pattern | Theme Accent | Example Terms |
 |---------|-------------------|--------------|---------------|
-| K-12 | `fixed-timetable` | Teal `#0d9488` | Student, Teacher, Period |
+| K-12 | `fixed-timetable` | Teal `#007f7a` | Student, Teacher, Period |
 | Dance | `time-slots` | Rose `#c0506a` | Dancer, Instructor, Time Slot |
-| Music | `appointments` | Indigo `#6366f1` | Student (Music), Instructor, Lesson Slot |
-| Kindergarten | `activity-blocks` | Green `#22c55e` | Child, Caregiver, Activity Block |
-| Tutoring | `flexible-slots` | Slate `#64748b` | Learner, Tutor, Session Slot |
+| Music | `appointments` | Indigo `#5b4fc7` | Student, Instructor, Lesson Slot |
+| Kindergarten | `activity-blocks` | Green `#2e944e` | Child, Caregiver, Activity Block |
+| Tutoring | `flexible-slots` | Slate `#3d6b8e` | Learner, Tutor, Session Slot |
 
 ### 16 Terminology Keys
 
-Every user-facing label is configurable per school type:
+Every user-facing label is configurable per school type **and per unit**:
 
 ```
 student, teacher, employee, grade, section, subject, course, courseGroup,
 term, period, stream, department, family, parent, academicYear, attendance
 ```
 
-### 10 Adapters
+### 10 Adapters (with Real Logic)
+
+Adapters are factory functions that receive the `SchoolRepository` — they check for conflicts, create entries, and calculate fees through the repository.
 
 **5 Scheduling adapters** — one per scheduling pattern:
 - `fixed-timetable` (K-12) — weekly grid with periods
@@ -76,11 +78,9 @@ term, period, stream, department, family, parent, academicYear, attendance
 - `per-month` (Kindergarten) — monthly flat rate
 - `per-session` (Tutoring) — per-session billing
 
-The adapter registry routes capability calls (like `schedule-class` or `calculate-fees`) to the correct adapter based on the school's profile type.
+### 8 Service Flows (footprintjs)
 
-### Service Flows (footprintjs)
-
-Three flowchart-based service flows with full narrative tracing:
+All 8 actions have flowchart-based service flows with dynamic terminology per school type:
 
 **Enrollment Flow** — linear pipeline:
 ```
@@ -101,7 +101,52 @@ Validate-Session → Create-Session → Has-Records?
                                       └─ no  → Session-Created
 ```
 
+**Plus:** Create-Grade, Create-Section, Check-Availability, Calculate-Fees flows.
+
 Every flow stage produces narrative entries explaining what happened and why — making the system AI-explainable.
+
+### Per-Unit Overrides
+
+Individual school units can override terminology, module toggles, and theme without changing the school type configuration:
+
+```typescript
+const overrideStore = createMemoryOverrideStore({
+  "dance-1": {
+    terminologyOverrides: { student: "Performer", teacher: "Coach" },
+    themeOverrides: { accent: "#ff0000" },
+  },
+});
+
+const platform = createSchoolPlatform({
+  profileStore: store,
+  repository: myRepo,
+  overrideStore,
+});
+
+const t = await platform.getTermResolverWithOverrides(ctx);
+t("student");  // → "Performer" (overridden from "Dancer")
+t("grade");    // → "Level" (falls back to dance school default)
+```
+
+### AI Planning API
+
+The `describeService` API exposes build-time stage descriptions for AI agents to reason about flows before execution:
+
+```typescript
+const desc = platform.describeService("enroll-student", "dance");
+// → {
+//     actionId: "enroll-student",
+//     description: "...",
+//     stages: [
+//       { id: "validate-input", description: "Validate that required enrollment fields are present" },
+//       { id: "prepare-context", description: "Resolve Family linkage based on provided familyId" },
+//       { id: "enroll-student", description: "Create the Dancer record in the repository" },
+//       { id: "link-grade", description: "Assign the Dancer to a Level if specified" },
+//     ]
+//   }
+
+const all = platform.describeAllServices("k12"); // describe all 8 services for K-12
+```
 
 ## Quick Start
 
@@ -149,20 +194,29 @@ const result = await platform.executeServiceFlow(ctx, "enroll-student", {
   dob: "2015-03-12",
 });
 // → { status: "success", result: { enrolledStudent: {...} }, narrative: [...] }
+
+// 8. Describe what a service does (for AI planning)
+const desc = platform.describeService("schedule-class", "dance");
+// → { stages: [...], description: "..." }
 ```
 
-## SchoolRepository Interface
+## Typed SchoolRepository Interface
 
-Flows use a port interface — swap in any backend (Prisma, in-memory, external API):
+Flows and adapters use a strongly-typed port interface:
 
 ```typescript
-interface SchoolRepository {
-  createStudent(data: { name: string; dob: string; familyId?: string }): Promise<Record<string, unknown>>;
-  createScheduleEntry(data: { teacherId: string; classId: string; slot: unknown }): Promise<Record<string, unknown>>;
-  findConflicts(query: { teacherId: string; classId: string; slot: unknown }): Promise<readonly Record<string, unknown>[]>;
-  createAttendanceSession(data: { classId: string; date: string; teacherId?: string }): Promise<Record<string, unknown>>;
-  markAttendance(sessionId: string, records: readonly Record<string, unknown>[]): Promise<Record<string, unknown>>;
-}
+type SchoolRepository = {
+  createStudent(input: CreateStudentInput): Promise<Student>;
+  findStudents(query: FindStudentsQuery): Promise<readonly Student[]>;
+  createScheduleEntry(input: CreateScheduleEntryInput): Promise<ScheduleEntry>;
+  findConflicts(input: FindConflictsInput): Promise<readonly Conflict[]>;
+  createAttendanceSession(input: CreateSessionInput): Promise<AttendanceSession>;
+  markAttendance(input: MarkAttendanceInput): Promise<AttendanceMark>;
+  createGrade(input: CreateGradeInput): Promise<Grade>;
+  createSection(input: CreateSectionInput): Promise<Section>;
+  checkAvailability(input: CheckAvailabilityInput): Promise<AvailabilityResult>;
+  calculateFee(input: CalculateFeeInput): Promise<FeeCalculation>;
+};
 ```
 
 ## Project Structure
@@ -170,30 +224,33 @@ interface SchoolRepository {
 ```
 src/
   modules/          7 school modules (students, academics, attendance, ...)
-  profiles/         5 school type profiles with extended config
+  profiles/         5 school type profiles with unified metadata
   terminology/      16 configurable term keys per school type
   capabilities/     5 capability definitions
-  adapters/         10 adapters (5 scheduling + 5 fee) with mappings
+  adapters/         10 adapter factories (5 scheduling + 5 fee) with mappings
   actions/          8 action definitions for MCP tool generation
   flows/
     enrollment/     Enrollment service flow
-    scheduling/     Scheduling service flow with conflict detection
+    scheduling/     Scheduling + check-availability flows
     attendance/     Attendance service flow with subflow composition
-    schoolServiceComposer.ts   Service registry + composed operations flow
+    academics/      Create-grade + create-section flows
+    fees/           Calculate-fees flow
+    schoolServiceComposer.ts   Service registry with lazy per-type flow building
+  overrides/        Per-unit override store
   schoolPlatform.ts Platform entry point wiring everything together
-  types.ts          Core type definitions
+  types.ts          Domain entities + repository interface
   index.ts          Public API
 ```
 
 ## Tests
 
 ```bash
-npm test        # 77 tests across 9 test files
+npm test        # 108 tests across 12 test files
 ```
 
 Test coverage includes:
-- **Unit tests** — modules, profiles, terminology, adapter routing
-- **Scenario tests** — enrollment/scheduling/attendance flows, service composition, full platform integration
+- **Unit tests** — modules, profiles, terminology, adapter routing, adapter factories
+- **Scenario tests** — all 7 service flows, service composition, full platform integration, per-unit overrides, describeService API
 
 ## License
 

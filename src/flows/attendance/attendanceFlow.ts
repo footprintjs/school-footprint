@@ -9,7 +9,8 @@ import type { SchoolRepository } from "../../types.js";
  * 2. CREATE_SESSION — create the attendance session record
  * 3. MARK_RECORDS — bulk mark student attendance (subflow)
  */
-export function createAttendanceFlow(repo: SchoolRepository) {
+export function createAttendanceFlow(repo: SchoolRepository, t?: (key: string) => string) {
+  const term = t ?? ((k: string) => k);
   const markAttendanceSubflow = flowChart<any, ScopeFacade>(
     "Validate-Records",
     async (scope: ScopeFacade) => {
@@ -59,7 +60,7 @@ export function createAttendanceFlow(repo: SchoolRepository) {
           date: scope.getGlobal("sessionDate"),
           teacherId: scope.getGlobal("teacherId"),
         });
-        scope.setGlobal("sessionId", (session as Record<string, unknown>).id, "Attendance session created");
+        scope.setGlobal("sessionId", session.id, `${term("attendance")} session created`);
         scope.setGlobal("session", session, "Full session record");
       },
       "create-session",

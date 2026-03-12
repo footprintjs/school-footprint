@@ -1,17 +1,24 @@
 import { flowChart, FlowChartExecutor, ManifestFlowRecorder, ScopeFacade } from "footprintjs";
 import type { FlowChart } from "footprintjs";
-import type { SchoolRepository, SchoolFlowContext } from "../types.js";
+import type { SchoolRepository, SchoolFlowContext, SchoolType } from "../types.js";
+import { schoolTerminology } from "../terminology/schoolTerms.js";
 import { createEnrollmentFlow } from "./enrollment/enrollmentFlow.js";
 import { createAttendanceFlow } from "./attendance/attendanceFlow.js";
 import { createSchedulingFlow } from "./scheduling/schedulingFlow.js";
+import { createCheckAvailabilityFlow } from "./scheduling/checkAvailabilityFlow.js";
+import { createGradeFlow } from "./academics/createGradeFlow.js";
+import { createSectionFlow } from "./academics/createSectionFlow.js";
+import { createCalculateFeesFlow } from "./fees/calculateFeesFlow.js";
 
 /**
  * Service flow registry — maps action IDs to their flowchart builders.
  * Each service is a footprintjs flowchart that can be composed as a subflow.
  */
 export type SchoolServiceRegistry = {
-  /** Get the flow for a specific action */
+  /** Get the flow for a specific action (generic, no terminology) */
   getFlow(actionId: string): FlowChart | undefined;
+  /** Get the flow for a specific action + school type (with terminology) */
+  getTypedFlow(actionId: string, schoolType: SchoolType): FlowChart | undefined;
   /** List all registered service IDs */
   serviceIds(): readonly string[];
   /** Execute a service flow with manifest tracking */
@@ -20,6 +27,10 @@ export type SchoolServiceRegistry = {
     input: Record<string, unknown>,
     context: SchoolFlowContext,
   ): Promise<SchoolServiceResult>;
+  /** Describe a service flow (build-time stage descriptions) */
+  describeService(actionId: string, schoolType?: SchoolType): ServiceDescription | undefined;
+  /** Describe all registered services */
+  describeAllServices(schoolType?: SchoolType): readonly ServiceDescription[];
 };
 
 export type SchoolServiceResult = {
@@ -30,6 +41,12 @@ export type SchoolServiceResult = {
   readonly narrative: readonly string[];
 };
 
+export type ServiceDescription = {
+  readonly actionId: string;
+  readonly description: string;
+  readonly stages: readonly { name: string; id: string; description: string }[];
+};
+
 type ManifestEntry = {
   subflowId: string;
   name: string;
@@ -37,35 +54,98 @@ type ManifestEntry = {
   children: ManifestEntry[];
 };
 
+/** Term resolver for a school type — uses schoolTerminology with fallback to default */
+function createTermResolver(schoolType: SchoolType): (key: string) => string {
+  return (key: string) => {
+    const entry = schoolTerminology[key as keyof typeof schoolTerminology];
+    if (!entry) return key;
+    return entry[schoolType] ?? entry.default ?? key;
+  };
+}
+
+type FlowBuilder = (repo: SchoolRepository, t?: (key: string) => string) => FlowChart;
+
+/** All action-to-flow-builder mappings */
+const FLOW_BUILDERS: Record<string, FlowBuilder> = {
+  "enroll-student": createEnrollmentFlow,
+  "create-attendance-session": createAttendanceFlow,
+  "mark-attendance": createAttendanceFlow,
+  "schedule-class": createSchedulingFlow,
+  "check-availability": createCheckAvailabilityFlow,
+  "create-grade": createGradeFlow,
+  "create-section": createSectionFlow,
+  "calculate-fees": createCalculateFeesFlow,
+};
+
 /**
  * Create the school service registry — wires repository to flows.
  *
- * Each service is a footprintjs flowchart. When composed together (e.g., enrollment
- * triggers attendance setup), they form a tree of services tracked by ManifestFlowRecorder.
+ * Flows are built lazily per school type with terminology baked into descriptions.
+ * Generic flows (no terminology) are built eagerly for backward compatibility.
  */
 export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServiceRegistry {
-  const enrollmentFlow = createEnrollmentFlow(repo);
-  const attendanceFlow = createAttendanceFlow(repo);
-  const schedulingFlow = createSchedulingFlow(repo);
+  // Eager generic flows (no terminology) for backward compat
+  const genericFlows = new Map<string, FlowChart>();
+  for (const [actionId, builder] of Object.entries(FLOW_BUILDERS)) {
+    genericFlows.set(actionId, builder(repo));
+  }
 
-  const flows = new Map<string, FlowChart>([
-    ["enroll-student", enrollmentFlow],
-    ["create-attendance-session", attendanceFlow],
-    ["mark-attendance", attendanceFlow],
-    ["schedule-class", schedulingFlow],
-  ]);
+  // Lazy per-type flow cache: "actionId:schoolType" → FlowChart
+  const typedFlowCache = new Map<string, FlowChart>();
+
+  function getTypedFlow(actionId: string, schoolType: SchoolType): FlowChart | undefined {
+    const key = `${actionId}:${schoolType}`;
+    if (typedFlowCache.has(key)) return typedFlowCache.get(key)!;
+    const builder = FLOW_BUILDERS[actionId];
+    if (!builder) return undefined;
+    const t = createTermResolver(schoolType);
+    const flow = builder(repo, t);
+    typedFlowCache.set(key, flow);
+    return flow;
+  }
+
+  function describeFlow(flow: FlowChart, actionId: string): ServiceDescription {
+    return {
+      actionId,
+      description: flow.description ?? actionId,
+      stages: Array.from(flow.stageDescriptions?.entries() ?? []).map(([id, desc]) => ({
+        name: id,
+        id,
+        description: desc,
+      })),
+    };
+  }
 
   return {
     getFlow(actionId) {
-      return flows.get(actionId);
+      return genericFlows.get(actionId);
     },
 
+    getTypedFlow,
+
     serviceIds() {
-      return Object.freeze(Array.from(flows.keys()));
+      return Object.freeze(Array.from(genericFlows.keys()));
+    },
+
+    describeService(actionId, schoolType) {
+      const flow = schoolType ? getTypedFlow(actionId, schoolType) : genericFlows.get(actionId);
+      if (!flow) return undefined;
+      return describeFlow(flow, actionId);
+    },
+
+    describeAllServices(schoolType) {
+      return Array.from(genericFlows.keys()).map((actionId) => {
+        const flow = schoolType ? getTypedFlow(actionId, schoolType)! : genericFlows.get(actionId)!;
+        return describeFlow(flow, actionId);
+      });
     },
 
     async executeService(actionId, input, context) {
-      const flow = flows.get(actionId);
+      // Use typed flow if school type is available, otherwise generic
+      const flow = context.schoolType
+        ? getTypedFlow(actionId, context.schoolType) ?? genericFlows.get(actionId)
+        : genericFlows.get(actionId);
+
       if (!flow) {
         return {
           status: "error",
@@ -109,10 +189,6 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
 
 /**
  * Create a composed "school operations" flow that orchestrates multiple services.
- *
- * This demonstrates footprintjs v0.9.0's subflow composition — the school platform
- * is a tree of services, each service is a flowchart, and the manifest tracks
- * which services ran and what happened.
  */
 export function createSchoolOperationsFlow(repo: SchoolRepository) {
   const enrollmentFlow = createEnrollmentFlow(repo);

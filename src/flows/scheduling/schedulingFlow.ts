@@ -10,7 +10,9 @@ import type { SchoolRepository } from "../../types.js";
  * 3. CONFLICT_DECISION — route to create or reject
  * 4. CREATE_ENTRY / REPORT_CONFLICT — outcome branches
  */
-export function createSchedulingFlow(repo: SchoolRepository) {
+export function createSchedulingFlow(repo: SchoolRepository, t?: (key: string) => string) {
+  const term = t ?? ((k: string) => k);
+
   return flowChart<any, ScopeFacade>(
     "Validate-Assignment",
     async (scope: ScopeFacade) => {
@@ -18,13 +20,13 @@ export function createSchedulingFlow(repo: SchoolRepository) {
       if (!input?.teacherId) throw new Error("Teacher ID is required");
       if (!input?.classId) throw new Error("Class ID is required");
       if (!input?.slot) throw new Error("Time slot is required");
-      scope.setGlobal("teacherId", input.teacherId, "Teacher to assign");
+      scope.setGlobal("teacherId", input.teacherId, `${term("teacher")} to assign`);
       scope.setGlobal("classId", input.classId, "Class to assign");
-      scope.setGlobal("slot", input.slot, "Requested time slot");
+      scope.setGlobal("slot", input.slot, `Requested ${term("period")}`);
     },
     "validate-assignment",
     undefined,
-    "Validate that teacher, class, and time slot are provided",
+    `Validate that ${term("teacher")}, class, and ${term("period")} are provided`,
   )
     .addFunction(
       "Check-Conflicts",
@@ -41,7 +43,7 @@ export function createSchedulingFlow(repo: SchoolRepository) {
         );
       },
       "check-conflicts",
-      "Check for teacher and class conflicts in the requested time slot",
+      `Check for ${term("teacher")} and class conflicts in the requested ${term("period")}`,
     )
     .addDeciderFunction(
       "Conflict-Decision",

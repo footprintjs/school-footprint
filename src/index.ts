@@ -31,6 +31,30 @@ export type {
   SchoolTermKey,
   SchoolRepository,
   SchoolFlowContext,
+  // Domain entities
+  Student,
+  CreateStudentInput,
+  FindStudentsQuery,
+  ScheduleEntry,
+  CreateScheduleEntryInput,
+  Conflict,
+  FindConflictsInput,
+  AttendanceSession,
+  CreateSessionInput,
+  AttendanceRecord,
+  AttendanceMark,
+  MarkAttendanceInput,
+  Grade,
+  CreateGradeInput,
+  Section,
+  CreateSectionInput,
+  AvailabilityResult,
+  CheckAvailabilityInput,
+  FeeCalculation,
+  CalculateFeeInput,
+  // Per-unit overrides
+  UnitOverrides,
+  UnitOverrideStore,
 } from "./types.js";
 
 // Modules
@@ -68,6 +92,8 @@ export {
 
 // Adapters
 export {
+  createSchedulingAdapters,
+  createFeeAdapters,
   fixedTimetableAdapter,
   timeSlotsAdapter,
   appointmentsAdapter,
@@ -101,13 +127,20 @@ export {
   createEnrollmentFlow,
   createAttendanceFlow,
   createSchedulingFlow,
+  createCheckAvailabilityFlow,
+  createGradeFlow,
+  createSectionFlow,
+  createCalculateFeesFlow,
   createSchoolServiceRegistry,
   createSchoolOperationsFlow,
 } from "./flows/index.js";
-export type { SchoolServiceRegistry, SchoolServiceResult } from "./flows/index.js";
+export type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription } from "./flows/index.js";
 
 // Terminology
 export { schoolTerminology, getTermsForDomain } from "./terminology/schoolTerms.js";
+
+// Overrides
+export { createMemoryOverrideStore } from "./overrides/unitOverrides.js";
 
 // Re-export key blueprint types for convenience
 export {
@@ -116,6 +149,7 @@ export {
   createFeatureGate,
   createTermResolver,
   resolveProfileConfig,
+  createServiceBridge,
 } from "@footprint/platform";
 export type {
   TenantContext,

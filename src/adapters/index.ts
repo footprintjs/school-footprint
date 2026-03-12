@@ -1,4 +1,5 @@
 export {
+  createSchedulingAdapters,
   fixedTimetableAdapter,
   timeSlotsAdapter,
   appointmentsAdapter,
@@ -8,6 +9,7 @@ export {
 } from "./schedulingAdapters.js";
 
 export {
+  createFeeAdapters,
   perTermFeeAdapter,
   perClassFeeAdapter,
   perLessonFeeAdapter,
