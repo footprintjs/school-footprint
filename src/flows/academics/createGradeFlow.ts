@@ -1,5 +1,5 @@
-import { flowChart, ScopeFacade } from "footprintjs";
-import type { SchoolRepository } from "../../types.js";
+import { flowChart } from "footprintjs";
+import type { SchoolRepository, Grade } from "../../types.js";
 
 /**
  * Create grade flow — creates a grade/level/age group.
@@ -7,16 +7,16 @@ import type { SchoolRepository } from "../../types.js";
 export function createGradeFlow(repo: SchoolRepository, t?: (key: string) => string) {
   const term = t ?? ((k: string) => k);
 
-  return flowChart<any, ScopeFacade>(
+  return flowChart<any>(
     "Validate-Input",
-    async (scope: ScopeFacade) => {
-      const input = scope.getValue("input") as Record<string, unknown>;
+    async (scope) => {
+      const input = scope.input as { name?: string; code?: string; sortOrder?: number } | undefined;
       if (!input?.name || typeof input.name !== "string") {
         throw new Error(`${term("grade")} name is required`);
       }
-      scope.setGlobal("gradeName", input.name, `${term("grade")} name validated`);
-      scope.setGlobal("gradeCode", input.code ?? null, `${term("grade")} code (if provided)`);
-      scope.setGlobal("sortOrder", input.sortOrder ?? null, "Sort order (if provided)");
+      scope.gradeName = input.name;
+      scope.gradeCode = input.code ?? null;
+      scope.sortOrder = input.sortOrder ?? null;
     },
     "validate-input",
     undefined,
@@ -24,16 +24,17 @@ export function createGradeFlow(repo: SchoolRepository, t?: (key: string) => str
   )
     .addFunction(
       "Create-Grade",
-      async (scope: ScopeFacade) => {
+      async (scope) => {
         const grade = await repo.createGrade({
-          name: scope.getGlobal("gradeName"),
-          code: scope.getGlobal("gradeCode") ?? undefined,
-          sortOrder: scope.getGlobal("sortOrder") ?? undefined,
-        });
-        scope.setGlobal("createdGrade", grade, `${term("grade")} record created`);
+          name: scope.gradeName as string,
+          code: (scope.gradeCode as string | null) ?? undefined,
+          sortOrder: (scope.sortOrder as number | null) ?? undefined,
+        }) as Grade;
+        scope.createdGrade = grade;
       },
       "create-grade",
       `Create the ${term("grade")} record in the repository`,
     )
+
     .build();
 }

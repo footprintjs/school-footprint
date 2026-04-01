@@ -8,9 +8,9 @@ describe("enrollment flow", () => {
 
   it("enrolls a student with required fields", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Luna Martinez", dob: "2015-03-12" },
-    });
+    }});
     executor.enableNarrative();
 
     await executor.run();
@@ -25,9 +25,9 @@ describe("enrollment flow", () => {
 
   it("enrolls a student with family linkage", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Max Chen", dob: "2014-07-22", familyId: "fam-1" },
-    });
+    }});
 
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
@@ -38,9 +38,9 @@ describe("enrollment flow", () => {
 
   it("enrolls a student with grade assignment", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Aria Lee", dob: "2016-01-15", gradeId: "grade-3" },
-    });
+    }});
 
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
@@ -50,27 +50,27 @@ describe("enrollment flow", () => {
 
   it("rejects enrollment without name", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { dob: "2015-03-12" },
-    });
+    }});
 
     await expect(executor.run()).rejects.toThrow("Student name is required");
   });
 
   it("rejects enrollment without dob", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Test" },
-    });
+    }});
 
     await expect(executor.run()).rejects.toThrow("Date of birth is required");
   });
 
   it("produces narrative entries", async () => {
     const flow = createEnrollmentFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Luna Martinez", dob: "2015-03-12" },
-    });
+    }});
     executor.enableNarrative();
 
     await executor.run();

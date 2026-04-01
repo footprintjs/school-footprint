@@ -1,5 +1,7 @@
-import { flowChart, FlowChartExecutor, ManifestFlowRecorder, ScopeFacade } from "footprintjs";
+import { flowChart, FlowChartExecutor, ManifestFlowRecorder } from "footprintjs";
 import type { FlowChart } from "footprintjs";
+// RunnableFlowChart extends FlowChart — widen FlowBuilder to accept both
+
 import type { SchoolRepository, SchoolFlowContext, SchoolType } from "../types.js";
 import { schoolTerminology } from "../terminology/schoolTerms.js";
 import { createEnrollmentFlow } from "./enrollment/enrollmentFlow.js";
@@ -27,10 +29,30 @@ export type SchoolServiceRegistry = {
     input: Record<string, unknown>,
     context: SchoolFlowContext,
   ): Promise<SchoolServiceResult>;
+  /**
+   * Build a fresh service flow for orchestrator use.
+   * Returns a NEW FlowChart each call (safe for concurrent requests —
+   * Phase 4 mutates StageNode objects, so cached charts are unsafe).
+   */
+  buildServiceFlow(
+    actionId: string,
+    context: SchoolFlowContext,
+  ): BuiltServiceFlow | undefined;
   /** Describe a service flow (build-time stage descriptions) */
   describeService(actionId: string, schoolType?: SchoolType): ServiceDescription | undefined;
   /** Describe all registered services */
   describeAllServices(schoolType?: SchoolType): readonly ServiceDescription[];
+};
+
+export type BuiltServiceFlow = {
+  /** Fresh FlowChart — safe for single-request use (not cached) */
+  readonly flow: FlowChart;
+  readonly flowMeta: {
+    readonly flowId: string;
+    readonly description?: string;
+    readonly stageDescriptions: Record<string, string>;
+    readonly buildTimeStructure: unknown;
+  };
 };
 
 export type SchoolServiceResult = {
@@ -39,6 +61,15 @@ export type SchoolServiceResult = {
   readonly error?: string;
   readonly manifest: readonly ManifestEntry[];
   readonly narrative: readonly string[];
+  /** Flow metadata for Trace Studio drill-down */
+  readonly flowMeta?: {
+    readonly flowId: string;
+    readonly description?: string;
+    readonly stageDescriptions?: Record<string, string>;
+    readonly snapshot?: Record<string, unknown>;
+    /** Full hierarchical spec from FlowChartBuilder.build() — used by Trace Studio for subflow drill-down */
+    readonly buildTimeStructure?: unknown;
+  };
 };
 
 export type ServiceDescription = {
@@ -63,19 +94,213 @@ function createTermResolver(schoolType: SchoolType): (key: string) => string {
   };
 }
 
-type FlowBuilder = (repo: SchoolRepository, t?: (key: string) => string) => FlowChart;
+// ---------------------------------------------------------------------------
+// ActionFlowRegistry — variant-aware flow builder registration
+// ---------------------------------------------------------------------------
+
+/**
+ * A function that builds a FlowChart given a repository and optional term resolver.
+ * Returns FlowChart or RunnableFlowChart (which extends FlowChart in 3.x).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type FlowBuilder = (repo: SchoolRepository, t?: (key: string) => string) => any;
+
+/**
+ * A single action's flow registration.
+ *
+ * - `default` is always present — every action has a base flow.
+ * - `variants` maps school types to alternative builders.
+ *   Only school types that genuinely differ need an entry.
+ *   The selector falls back to `default` when no variant matches.
+ */
+export type ActionFlowEntry = {
+  readonly default: FlowBuilder;
+  readonly variants?: Partial<Readonly<Record<SchoolType, FlowBuilder>>>;
+};
+
+/**
+ * The full registry: action ID → flow entry with default + optional variants.
+ *
+ * This is the "Shopify plugin registry" for school flows — adding a new
+ * school-type variant is one line, zero route changes.
+ */
+export type ActionFlowRegistry = Readonly<Record<string, ActionFlowEntry>>;
 
 /** All action-to-flow-builder mappings */
-const FLOW_BUILDERS: Record<string, FlowBuilder> = {
-  "enroll-student": createEnrollmentFlow,
-  "create-attendance-session": createAttendanceFlow,
-  "mark-attendance": createAttendanceFlow,
-  "schedule-class": createSchedulingFlow,
-  "check-availability": createCheckAvailabilityFlow,
-  "create-grade": createGradeFlow,
-  "create-section": createSectionFlow,
-  "calculate-fees": createCalculateFeesFlow,
+const ACTION_FLOW_REGISTRY: ActionFlowRegistry = {
+  "enroll-student": { default: createEnrollmentFlow },
+  "create-attendance-session": { default: createAttendanceFlow },
+  "mark-attendance": { default: createAttendanceFlow },
+  "schedule-class": { default: createSchedulingFlow },
+  "check-availability": { default: createCheckAvailabilityFlow },
+  "create-grade": { default: createGradeFlow },
+  "create-section": { default: createSectionFlow },
+  "calculate-fees": { default: createCalculateFeesFlow },
 };
+
+/**
+ * Resolve the correct FlowBuilder for an action + school type combination.
+ * Returns the variant if registered, otherwise the default.
+ */
+export function resolveFlowBuilder(actionId: string, schoolType?: SchoolType): FlowBuilder | undefined {
+  const entry = ACTION_FLOW_REGISTRY[actionId];
+  if (!entry) return undefined;
+  if (schoolType && entry.variants?.[schoolType]) {
+    return entry.variants[schoolType]!;
+  }
+  return entry.default;
+}
+
+/**
+ * Resolve the branch ID the decider will return for a given action + school type.
+ * If a variant exists for the school type, returns "actionId:schoolType", else "actionId".
+ */
+export function resolveActionBranchId(actionId: string, schoolType?: SchoolType): string {
+  const entry = ACTION_FLOW_REGISTRY[actionId];
+  if (!entry) return actionId;
+  if (schoolType && entry.variants?.[schoolType]) {
+    return `${actionId}:${schoolType}`;
+  }
+  return actionId;
+}
+
+/**
+ * Get all registered action IDs.
+ */
+export function getRegisteredActionIds(): readonly string[] {
+  return Object.freeze(Object.keys(ACTION_FLOW_REGISTRY));
+}
+
+/**
+ * Get the ActionFlowEntry for an action, or undefined if not registered.
+ * Uses Object.hasOwn to prevent prototype property lookups.
+ */
+export function getActionFlowEntry(actionId: string): ActionFlowEntry | undefined {
+  if (!Object.hasOwn(ACTION_FLOW_REGISTRY, actionId)) return undefined;
+  return ACTION_FLOW_REGISTRY[actionId];
+}
+
+// ---------------------------------------------------------------------------
+// ActionDispatch — framework-agnostic dispatch descriptor
+// ---------------------------------------------------------------------------
+
+/** A lazy branch resolver for the decider. Only called when the branch is selected. */
+export type ActionBranch = {
+  /** Lazy resolver — produces a FlowChart on demand (called at most once per execution). */
+  readonly resolver: () => FlowChart;
+  /** SubflowMountOptions for input/output mapping between parent scope and subflow. */
+  readonly mountOptions?: {
+    readonly inputMapper?: (parentScope: unknown) => unknown;
+    readonly outputMapper?: (subflowOutput: unknown, parentScope: unknown) => Record<string, unknown>;
+  };
+};
+
+/**
+ * ActionDispatch — the output of school-footprint's dispatch resolution.
+ *
+ * Contains everything the orchestrator layer needs to build a flow with
+ * `addDeciderFunction` + `addLazySubFlowChartBranch` — no Phase 4 hacks.
+ *
+ * Framework-agnostic: no Fastify, no Express, no HTTP concepts.
+ */
+export type ActionDispatch = {
+  /** The resolved action ID (e.g., "create-grade"). */
+  readonly actionId: string;
+  /** Decider function: reads schoolType from scope → returns the branch ID to execute. */
+  readonly deciderFn: (scope: any) => string | Promise<string>;
+  /** Map of branchId → lazy resolver. Only the selected branch's resolver fires. */
+  readonly branches: ReadonlyMap<string, ActionBranch>;
+  /** Pre-built input (includes schoolType, unitId from resolution). */
+  readonly input: Record<string, unknown>;
+  /** Metadata for tracing and visualization. */
+  readonly meta: {
+    readonly resolvedSchoolType: SchoolType;
+    readonly availableVariants: readonly string[];
+    readonly selectedBranch: string;
+    readonly description: string;
+  };
+};
+
+/**
+ * Build an ActionDispatch for an action + school type + repository.
+ *
+ * This is the core dispatch resolution:
+ * 1. Looks up the action in ACTION_FLOW_REGISTRY
+ * 2. Builds lazy branch resolvers for default + any matching variants
+ * 3. Returns a decider function that selects the right branch at runtime
+ *
+ * The caller (orchestrator layer) wires this into native builder API:
+ * `addDeciderFunction("FLOW_SELECTOR", dispatch.deciderFn)`
+ * `addLazySubFlowChartBranch(branchId, branch.resolver, ...)`
+ */
+export function buildActionDispatch(
+  actionId: string,
+  schoolType: SchoolType,
+  repo: SchoolRepository,
+): ActionDispatch | undefined {
+  const entry = getActionFlowEntry(actionId);
+  if (!entry) return undefined;
+
+  const termResolver = createTermResolver(schoolType);
+  const branches = new Map<string, ActionBranch>();
+
+  const extractInput = (parentScope: unknown) => {
+    // parentScope may be ScopeFacade or TypedScope — use duck-typing
+    const s = parentScope as any;
+    const requestInput = typeof s?.getValue === 'function'
+      ? s.getValue("requestInput") ?? s.getValue("input")
+      : s?.requestInput ?? s?.input;
+    return { input: requestInput };
+  };
+
+  // Default branch — always present
+  branches.set(actionId, {
+    resolver: () => entry.default(repo, termResolver),
+    mountOptions: { inputMapper: extractInput },
+  });
+
+  // Variant branches — one per registered school type override
+  if (entry.variants) {
+    for (const [type, builder] of Object.entries(entry.variants)) {
+      if (!builder) continue;
+      const variantId = `${actionId}:${type}`;
+      const variantTermResolver = createTermResolver(type as SchoolType);
+      branches.set(variantId, {
+        resolver: () => builder(repo, variantTermResolver),
+        mountOptions: { inputMapper: extractInput },
+      });
+    }
+  }
+
+  // Determine which branch the decider will select
+  const selectedBranch = resolveActionBranchId(actionId, schoolType);
+
+  return {
+    actionId,
+    deciderFn: async (scope: Record<string, unknown>) => {
+      // Read school type from scope (direct property access — TypedScope pattern)
+      const scopeSchoolType = scope?.schoolType as string | undefined;
+      if (scopeSchoolType) {
+        const variantKey = `${actionId}:${scopeSchoolType}`;
+        if (branches.has(variantKey)) return variantKey;
+      }
+      return actionId; // fallback to default
+    },
+    branches,
+    input: { schoolType },
+    meta: {
+      resolvedSchoolType: schoolType,
+      availableVariants: Object.freeze([...branches.keys()]),
+      selectedBranch,
+      description: `Select ${actionId} variant for ${schoolType} school type`,
+    },
+  };
+}
+
+// Backward-compat flat lookup (used internally by existing service registry methods)
+const FLOW_BUILDERS: Record<string, FlowBuilder> = Object.fromEntries(
+  Object.entries(ACTION_FLOW_REGISTRY).map(([id, entry]) => [id, entry.default]),
+);
 
 /**
  * Create the school service registry — wires repository to flows.
@@ -140,6 +365,35 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
       });
     },
 
+    buildServiceFlow(actionId, context) {
+      const builder = FLOW_BUILDERS[actionId];
+      if (!builder) return undefined;
+
+      // Build FRESH flow — never use cached flows for orchestrator.
+      // Phase 4 mutates StageNode objects (isSubflowRoot, subflowId),
+      // so reusing cached FlowCharts across concurrent requests is unsafe.
+      const t = context.schoolType ? createTermResolver(context.schoolType) : undefined;
+      const flow = builder(repo, t);
+
+      const rawStageDescs = (flow as any).stageDescriptions as Map<string, string> | undefined;
+      const stageDescriptions: Record<string, string> = {};
+      if (rawStageDescs) {
+        for (const [id, desc] of rawStageDescs.entries()) {
+          stageDescriptions[id] = desc;
+        }
+      }
+
+      return {
+        flow,
+        flowMeta: {
+          flowId: actionId,
+          description: (flow as any).description as string | undefined,
+          stageDescriptions,
+          buildTimeStructure: (flow as any).buildTimeStructure ?? null,
+        },
+      };
+    },
+
     async executeService(actionId, input, context) {
       // Use typed flow if school type is available, otherwise generic
       const flow = context.schoolType
@@ -155,15 +409,30 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
         };
       }
 
+      // Extract flow metadata for Trace Studio drill-down
+      const flowDescription = (flow as any).description as string | undefined;
+      const rawStageDescs = (flow as any).stageDescriptions as Map<string, string> | undefined;
+      const stageDescriptions: Record<string, string> = {};
+      if (rawStageDescs) {
+        for (const [id, desc] of rawStageDescs.entries()) {
+          stageDescriptions[id] = desc;
+        }
+      }
+
       const manifest = new ManifestFlowRecorder();
-      const executor = new FlowChartExecutor(
-        flow,
-        undefined,
-        undefined,
-        { input, schoolType: context.schoolType, unitId: context.unitId },
-      );
+      const initialState = { input: { ...input, schoolType: context.schoolType, unitId: context.unitId } };
+      const executor = new FlowChartExecutor(flow, { initialContext: initialState });
       executor.enableNarrative();
       executor.attachFlowRecorder(manifest);
+
+      const buildTimeStructure = (flow as any).buildTimeStructure ?? null;
+
+      const flowMeta = {
+        flowId: actionId,
+        description: flowDescription,
+        stageDescriptions,
+        buildTimeStructure,
+      };
 
       try {
         await executor.run();
@@ -174,6 +443,10 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
           result: snapshot.sharedState as Record<string, unknown>,
           manifest: manifest.getManifest(),
           narrative: executor.getNarrative(),
+          flowMeta: {
+            ...flowMeta,
+            snapshot: snapshot.sharedState as Record<string, unknown>,
+          },
         };
       } catch (err) {
         return {
@@ -181,6 +454,7 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
           error: err instanceof Error ? err.message : String(err),
           manifest: manifest.getManifest(),
           narrative: executor.getNarrative(),
+          flowMeta,
         };
       }
     },
@@ -190,17 +464,21 @@ export function createSchoolServiceRegistry(repo: SchoolRepository): SchoolServi
 /**
  * Create a composed "school operations" flow that orchestrates multiple services.
  */
+interface OpsState {
+  [key: string]: unknown;
+  operation: string;
+  input: Record<string, unknown>;
+}
+
 export function createSchoolOperationsFlow(repo: SchoolRepository) {
   const enrollmentFlow = createEnrollmentFlow(repo);
   const attendanceFlow = createAttendanceFlow(repo);
   const schedulingFlow = createSchedulingFlow(repo);
 
-  return flowChart<any, ScopeFacade>(
+  return flowChart<any, OpsState>(
     "Route-Operation",
-    async (scope: ScopeFacade) => {
-      const operation = scope.getValue("operation") as string;
-      if (!operation) throw new Error("Operation is required");
-      scope.setValue("operation", operation, false, `Routing to ${operation} service`);
+    async (scope) => {
+      if (!scope.operation) throw new Error("Operation is required");
     },
     "route-operation",
     undefined,
@@ -208,44 +486,35 @@ export function createSchoolOperationsFlow(repo: SchoolRepository) {
   )
     .addSelectorFunction(
       "Select-Service",
-      async (scope: ScopeFacade) => {
-        const operation = scope.getValue("operation") as string;
+      async (scope) => {
         const serviceMap: Record<string, string> = {
           enroll: "enrollment",
           attendance: "attendance",
           schedule: "scheduling",
         };
-        return serviceMap[operation] ?? "unknown";
+        return serviceMap[scope.operation] ?? "unknown";
       },
       "select-service",
       "Select which school service to invoke based on the operation type",
     )
-      .addSubFlowChartBranch("enrollment", enrollmentFlow, "Enrollment-Service", {
-        inputMapper: (parentScope: unknown) => {
-          const scope = parentScope as Record<string, unknown>;
-          return { input: scope.input };
-        },
+      .addSubFlowChartBranch("enrollment", enrollmentFlow as any, "Enrollment-Service", {
+        inputMapper: (parentScope: OpsState) => ({ input: parentScope.input }),
       })
-      .addSubFlowChartBranch("attendance", attendanceFlow, "Attendance-Service", {
-        inputMapper: (parentScope: unknown) => {
-          const scope = parentScope as Record<string, unknown>;
-          return { input: scope.input };
-        },
+      .addSubFlowChartBranch("attendance", attendanceFlow as any, "Attendance-Service", {
+        inputMapper: (parentScope: OpsState) => ({ input: parentScope.input }),
       })
-      .addSubFlowChartBranch("scheduling", schedulingFlow, "Scheduling-Service", {
-        inputMapper: (parentScope: unknown) => {
-          const scope = parentScope as Record<string, unknown>;
-          return { input: scope.input };
-        },
+      .addSubFlowChartBranch("scheduling", schedulingFlow as any, "Scheduling-Service", {
+        inputMapper: (parentScope: OpsState) => ({ input: parentScope.input }),
       })
       .addFunctionBranch(
         "unknown",
         "Unknown-Operation",
-        async (scope: ScopeFacade) => {
-          throw new Error(`Unknown operation: ${scope.getValue("operation")}`);
+        async (scope) => {
+          throw new Error(`Unknown operation: ${scope.operation}`);
         },
         "Unknown operation — raise error",
       )
       .end()
+
     .build();
 }

@@ -31,6 +31,8 @@ export type {
   SchoolTermKey,
   SchoolRepository,
   SchoolFlowContext,
+  TenantScope,
+  TerminologyLabel,
   // Domain entities
   Student,
   CreateStudentInput,
@@ -133,11 +135,47 @@ export {
   createCalculateFeesFlow,
   createSchoolServiceRegistry,
   createSchoolOperationsFlow,
+  resolveFlowBuilder,
+  resolveActionBranchId,
+  getRegisteredActionIds,
+  getActionFlowEntry,
+  buildActionDispatch,
 } from "./flows/index.js";
-export type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription } from "./flows/index.js";
+export type {
+  SchoolServiceRegistry,
+  SchoolServiceResult,
+  ServiceDescription,
+  BuiltServiceFlow,
+  FlowBuilder,
+  ActionFlowEntry,
+  ActionFlowRegistry,
+  ActionDispatch,
+  ActionBranch,
+} from "./flows/index.js";
 
 // Terminology
-export { schoolTerminology, getTermsForDomain } from "./terminology/schoolTerms.js";
+export {
+  schoolTerminology,
+  schoolTerminologyFull,
+  resolveTerminologyLabel,
+  getTermsForDomain,
+} from "./terminology/schoolTerms.js";
+
+// Shared helpers (for SIS service consumers)
+export {
+  SCHOOL_TYPES_LIST,
+  isValidSchoolType,
+  getAllSchoolTypeConfigs,
+  getSchoolTypeConfig,
+  getAllSchoolProfiles,
+  resolveSchoolTerminology,
+  getSchoolModuleRegistry,
+  createStubRepository,
+  createConfigPlatform,
+  createPlatformForRequest,
+  checkFlowError,
+  pluralize,
+} from "./helpers.js";
 
 // Overrides
 export { createMemoryOverrideStore } from "./overrides/unitOverrides.js";

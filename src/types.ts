@@ -75,6 +75,14 @@ export type SchoolTermKey =
   | "academicYear"
   | "attendance";
 
+/**
+ * Terminology label with singular/plural forms — matches SIS Platform's TerminologyLabel.
+ */
+export type TerminologyLabel = {
+  readonly singular: string;
+  readonly plural: string;
+};
+
 // ---------------------------------------------------------------------------
 // Domain entities — concrete types for repository operations
 // ---------------------------------------------------------------------------
@@ -264,6 +272,20 @@ export type UnitOverrideStore = {
   readonly getOverrides: (unitId: string) => Promise<UnitOverrides | undefined>;
 };
 
+// ---------------------------------------------------------------------------
+// Multi-tenancy scope — bridges to SIS Platform's 3-level tenant model
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps to SIS Platform's 3-level multi-tenancy (Tenant > Campus > School).
+ * Uses numeric IDs to match SIS Prisma models.
+ */
+export type TenantScope = {
+  readonly tenantId: number;
+  readonly campusId: number;
+  readonly schoolId: number;
+};
+
 /**
  * Context passed through school flows.
  */
@@ -272,4 +294,5 @@ export type SchoolFlowContext = {
   readonly unitId: string;
   readonly userId?: string;
   readonly repository: SchoolRepository;
+  readonly tenantScope?: TenantScope;
 };

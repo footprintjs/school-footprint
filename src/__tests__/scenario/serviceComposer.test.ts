@@ -11,10 +11,10 @@ describe("school service composer", () => {
     it("routes enrollment operation to enrollment service", async () => {
       const flow = createSchoolOperationsFlow(repo);
       const manifest = new ManifestFlowRecorder();
-      const executor = new FlowChartExecutor(flow, undefined, undefined, {
+      const executor = new FlowChartExecutor(flow, { initialContext: {
         operation: "enroll",
         input: { name: "Luna Martinez", dob: "2015-03-12" },
-      });
+      }});
       executor.attachFlowRecorder(manifest);
 
       await executor.run();
@@ -26,14 +26,14 @@ describe("school service composer", () => {
 
     it("routes scheduling operation", async () => {
       const flow = createSchoolOperationsFlow(repo);
-      const executor = new FlowChartExecutor(flow, undefined, undefined, {
+      const executor = new FlowChartExecutor(flow, { initialContext: {
         operation: "schedule",
         input: {
           teacherId: "teacher-1",
           classId: "class-1",
           slot: { dayOfWeek: 1, periodId: "P1" },
         },
-      });
+      }});
 
       await executor.run();
       const state = executor.getSnapshot().sharedState as Record<string, unknown>;

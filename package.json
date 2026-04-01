@@ -2,15 +2,8 @@
   "name": "school-footprint",
   "version": "0.1.0",
   "description": "School-domain wrapper for footprint-blueprint — configurable SIS engine for any school type",
-  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
-  },
   "scripts": {
     "build": "tsc",
     "test": "vitest run",
@@ -18,13 +11,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@footprint/actions": "file:../footprint-blueprint/packages/actions",
-    "@footprint/adapters": "file:../footprint-blueprint/packages/adapters",
-    "@footprint/features": "file:../footprint-blueprint/packages/features",
-    "@footprint/platform": "file:../footprint-blueprint/packages/platform",
-    "@footprint/seed": "file:../footprint-blueprint/packages/seed",
-    "@footprint/tenancy": "file:../footprint-blueprint/packages/tenancy",
-    "footprintjs": "^0.9.0",
+    "@footprint/actions": "workspace:*",
+    "@footprint/adapters": "workspace:*",
+    "@footprint/features": "workspace:*",
+    "@footprint/platform": "workspace:*",
+    "@footprint/seed": "workspace:*",
+    "@footprint/tenancy": "workspace:*",
+    "footprintjs": "^4.0.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {

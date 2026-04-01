@@ -19,8 +19,8 @@ import {
   schoolAdapterMappings,
 } from "./adapters/index.js";
 import { allSchoolActions } from "./actions/index.js";
-import { createSchoolServiceRegistry } from "./flows/index.js";
-import type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription } from "./flows/index.js";
+import { createSchoolServiceRegistry, buildActionDispatch } from "./flows/index.js";
+import type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription, BuiltServiceFlow, ActionDispatch } from "./flows/index.js";
 import type {
   SchoolType,
   SchoolTypeConfig,
@@ -28,7 +28,8 @@ import type {
   UnitOverrideStore,
   UnitOverrides,
 } from "./types.js";
-import { schoolTerminology } from "./terminology/schoolTerms.js";
+import { schoolTerminology, schoolTerminologyFull, resolveTerminologyLabel } from "./terminology/schoolTerms.js";
+import { pluralize } from "./helpers.js";
 
 /**
  * A fully configured school platform.
@@ -44,6 +45,16 @@ export type SchoolPlatform = Platform & {
     actionId: string,
     input: Record<string, unknown>,
   ): Promise<SchoolServiceResult>;
+  /**
+   * Build a fresh service flow for orchestrator use (no execution).
+   * Returns a new FlowChart + metadata, or an error if gating fails.
+   * The caller (e.g., requestFootprint orchestrator) runs it as a real subflow.
+   */
+  buildServiceFlow(
+    ctx: TenantContext,
+    actionId: string,
+    input: Record<string, unknown>,
+  ): Promise<BuiltServiceFlow & { input: Record<string, unknown> } | { error: string }>;
   /** Describe a service flow's stages for AI planning */
   describeService(
     actionId: string,
@@ -55,6 +66,18 @@ export type SchoolPlatform = Platform & {
   getUnitOverrides(unitId: string): Promise<UnitOverrides | undefined>;
   /** Get term resolver that respects per-unit overrides */
   getTermResolverWithOverrides(ctx: TenantContext): Promise<(key: string) => string>;
+  /** Get full term resolver returning { singular, plural } — bridges to SIS Platform format */
+  getFullTermResolver(ctx: TenantContext): Promise<(key: string) => { singular: string; plural: string }>;
+  /**
+   * Build a dispatch descriptor for the orchestrator.
+   * Resolves school type, checks gates, and returns a decider + lazy branch map.
+   * The orchestrator wires this into `addDeciderFunction` + `addLazySubFlowChartBranch`.
+   */
+  getActionDispatch(
+    ctx: TenantContext,
+    actionId: string,
+    input: Record<string, unknown>,
+  ): Promise<ActionDispatch & { input: Record<string, unknown> } | { error: string }>;
   /** Access the underlying service registry */
   serviceRegistry: SchoolServiceRegistry;
 };
@@ -148,6 +171,77 @@ export function createSchoolPlatform(config: SchoolPlatformConfig): SchoolPlatfo
         const entry = schoolTerminology[key as keyof typeof schoolTerminology];
         if (!entry) return key;
         return entry[schoolType] ?? entry.default ?? key;
+      };
+    },
+
+    async getFullTermResolver(ctx) {
+      const profileConfig = await basePlatform.resolveUnit(ctx);
+      const schoolType = profileConfig.profileType as SchoolType;
+      const overrides = config.overrideStore
+        ? await config.overrideStore.getOverrides(ctx.unitId)
+        : undefined;
+
+      return (key: string) => {
+        const base = resolveTerminologyLabel(key as any, schoolType);
+        if (overrides?.terminologyOverrides?.[key]) {
+          const singular = overrides.terminologyOverrides[key];
+          return { singular, plural: pluralize(singular) };
+        }
+        return base;
+      };
+    },
+
+    async getActionDispatch(ctx, actionId, input) {
+      // Gate check — ensure the action's modules are enabled
+      const action = actionRegistry.getAction(actionId);
+      if (action && action.requiredModules.length > 0) {
+        const gateResult = await basePlatform.gateCheck(ctx, action.requiredModules);
+        if (!gateResult.allowed) {
+          const deniedIds = gateResult.denied.map((d) => d.moduleId);
+          return { error: `Action "${actionId}" requires disabled modules: ${deniedIds.join(", ")}` };
+        }
+      }
+
+      const profileConfig = await basePlatform.resolveUnit(ctx);
+      const schoolType = profileConfig.profileType as SchoolType;
+
+      const dispatch = buildActionDispatch(actionId, schoolType, config.repository);
+      if (!dispatch) {
+        return { error: `No service flow registered for action: ${actionId}` };
+      }
+
+      return {
+        ...dispatch,
+        input: { ...input, schoolType, unitId: ctx.unitId },
+      };
+    },
+
+    async buildServiceFlow(ctx, actionId, input) {
+      // Gate check — ensure the action's modules are enabled
+      const action = actionRegistry.getAction(actionId);
+      if (action && action.requiredModules.length > 0) {
+        const gateResult = await basePlatform.gateCheck(ctx, action.requiredModules);
+        if (!gateResult.allowed) {
+          const deniedIds = gateResult.denied.map((d) => d.moduleId);
+          return { error: `Action "${actionId}" requires disabled modules: ${deniedIds.join(", ")}` };
+        }
+      }
+
+      const profileConfig = await basePlatform.resolveUnit(ctx);
+      const built = serviceRegistry.buildServiceFlow(actionId, {
+        schoolType: profileConfig.profileType as SchoolType,
+        unitId: ctx.unitId,
+        userId: ctx.userId,
+        repository: config.repository,
+      });
+
+      if (!built) {
+        return { error: `No service flow registered for action: ${actionId}` };
+      }
+
+      return {
+        ...built,
+        input: { ...input, schoolType: profileConfig.profileType, unitId: ctx.unitId },
       };
     },
 

@@ -8,5 +8,20 @@ export { createCalculateFeesFlow } from "./fees/calculateFeesFlow.js";
 export {
   createSchoolServiceRegistry,
   createSchoolOperationsFlow,
+  resolveFlowBuilder,
+  resolveActionBranchId,
+  getRegisteredActionIds,
+  getActionFlowEntry,
+  buildActionDispatch,
 } from "./schoolServiceComposer.js";
-export type { SchoolServiceRegistry, SchoolServiceResult } from "./schoolServiceComposer.js";
+export type {
+  SchoolServiceRegistry,
+  SchoolServiceResult,
+  ServiceDescription,
+  BuiltServiceFlow,
+  FlowBuilder,
+  ActionFlowEntry,
+  ActionFlowRegistry,
+  ActionDispatch,
+  ActionBranch,
+} from "./schoolServiceComposer.js";

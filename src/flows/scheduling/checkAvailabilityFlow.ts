@@ -1,5 +1,5 @@
-import { flowChart, ScopeFacade } from "footprintjs";
-import type { SchoolRepository } from "../../types.js";
+import { flowChart } from "footprintjs";
+import type { SchoolRepository, Conflict, AvailabilityResult } from "../../types.js";
 
 /**
  * Check availability flow — checks if a teacher or room is available.
@@ -7,16 +7,16 @@ import type { SchoolRepository } from "../../types.js";
 export function createCheckAvailabilityFlow(repo: SchoolRepository, t?: (key: string) => string) {
   const term = t ?? ((k: string) => k);
 
-  return flowChart<any, ScopeFacade>(
+  return flowChart<any>(
     "Validate-Input",
-    async (scope: ScopeFacade) => {
-      const input = scope.getValue("input") as Record<string, unknown>;
+    async (scope) => {
+      const input = scope.input as { teacherId?: string; roomId?: string; slot?: Record<string, unknown> } | undefined;
       if (!input?.slot) {
         throw new Error(`${term("period")} is required`);
       }
-      scope.setGlobal("teacherId", input.teacherId ?? null, `${term("teacher")} to check (if provided)`);
-      scope.setGlobal("roomId", input.roomId ?? null, "Room to check (if provided)");
-      scope.setGlobal("slot", input.slot, `${term("period")} to check`);
+      scope.teacherId = input.teacherId ?? null;
+      scope.roomId = input.roomId ?? null;
+      scope.slot = { ...input.slot };
     },
     "validate-input",
     undefined,
@@ -24,21 +24,18 @@ export function createCheckAvailabilityFlow(repo: SchoolRepository, t?: (key: st
   )
     .addFunction(
       "Check-Availability",
-      async (scope: ScopeFacade) => {
+      async (scope) => {
         const result = await repo.checkAvailability({
-          teacherId: scope.getGlobal("teacherId") ?? undefined,
-          roomId: scope.getGlobal("roomId") ?? undefined,
-          slot: scope.getGlobal("slot"),
-        });
-        scope.setGlobal("available", result.available,
-          result.available
-            ? `${term("period")} is available`
-            : `${term("period")} is not available — ${result.conflicts.length} conflict(s)`,
-        );
-        scope.setGlobal("conflicts", result.conflicts, "Conflicts found (if any)");
+          teacherId: (scope.teacherId as string | null) ?? undefined,
+          roomId: (scope.roomId as string | null) ?? undefined,
+          slot: scope.slot as Record<string, unknown>,
+        }) as AvailabilityResult;
+        scope.available = result.available;
+        scope.conflicts = [...result.conflicts] as Conflict[];
       },
       "check-availability",
       `Check if the requested ${term("period")} is available`,
     )
+
     .build();
 }

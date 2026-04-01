@@ -1,28 +1,26 @@
-import { flowChart, ScopeFacade } from "footprintjs";
-import type { SchoolRepository } from "../../types.js";
+import { flowChart, decide } from "footprintjs";
+import type { SchoolRepository, Conflict, ScheduleEntry } from "../../types.js";
+
+/** Strip proxy wrappers — workaround for scope proxy + structuredClone incompatibility */
+const plain = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
 /**
  * Scheduling service flow — assigns a teacher to a class with conflict detection.
- *
- * Stages:
- * 1. VALIDATE_ASSIGNMENT — check required fields
- * 2. CHECK_CONFLICTS — look for teacher and class conflicts
- * 3. CONFLICT_DECISION — route to create or reject
- * 4. CREATE_ENTRY / REPORT_CONFLICT — outcome branches
+ * Uses decide() for auto-captured decision evidence in the conflict routing.
  */
 export function createSchedulingFlow(repo: SchoolRepository, t?: (key: string) => string) {
   const term = t ?? ((k: string) => k);
 
-  return flowChart<any, ScopeFacade>(
+  return flowChart<any>(
     "Validate-Assignment",
-    async (scope: ScopeFacade) => {
-      const input = scope.getValue("input") as Record<string, unknown>;
+    async (scope) => {
+      const input = scope.input as { teacherId?: string; classId?: string; slot?: Record<string, unknown> } | undefined;
       if (!input?.teacherId) throw new Error("Teacher ID is required");
       if (!input?.classId) throw new Error("Class ID is required");
       if (!input?.slot) throw new Error("Time slot is required");
-      scope.setGlobal("teacherId", input.teacherId, `${term("teacher")} to assign`);
-      scope.setGlobal("classId", input.classId, "Class to assign");
-      scope.setGlobal("slot", input.slot, `Requested ${term("period")}`);
+      scope.teacherId = String(input.teacherId);
+      scope.classId = String(input.classId);
+      scope.slot = plain(input.slot);
     },
     "validate-assignment",
     undefined,
@@ -30,26 +28,28 @@ export function createSchedulingFlow(repo: SchoolRepository, t?: (key: string) =
   )
     .addFunction(
       "Check-Conflicts",
-      async (scope: ScopeFacade) => {
+      async (scope) => {
         const conflicts = await repo.findConflicts({
-          teacherId: scope.getGlobal("teacherId"),
-          classId: scope.getGlobal("classId"),
-          slot: scope.getGlobal("slot"),
-        });
-        scope.setGlobal("conflicts", conflicts,
-          conflicts.length > 0
-            ? `Found ${conflicts.length} scheduling conflict(s)`
-            : "No scheduling conflicts detected",
-        );
+          teacherId: scope.teacherId as string,
+          classId: scope.classId as string,
+          slot: scope.slot as Record<string, unknown>,
+        }) as Conflict[];
+        scope.conflicts = plain(conflicts);
       },
       "check-conflicts",
       `Check for ${term("teacher")} and class conflicts in the requested ${term("period")}`,
     )
     .addDeciderFunction(
       "Conflict-Decision",
-      async (scope: ScopeFacade) => {
-        const conflicts = scope.getGlobal("conflicts") as readonly unknown[];
-        return conflicts.length > 0 ? "has-conflict" : "no-conflict";
+      async (scope) => {
+        const result = decide({ conflicts: scope.conflicts } as Record<string, unknown>, [
+          {
+            when: (s: any) => Array.isArray(s.conflicts) && s.conflicts.length === 0,
+            then: "no-conflict",
+            label: "No scheduling conflicts detected",
+          },
+        ], "has-conflict");
+        return result.branch;
       },
       "conflict-decision",
       "Route based on whether conflicts were found",
@@ -57,28 +57,27 @@ export function createSchedulingFlow(repo: SchoolRepository, t?: (key: string) =
       .addFunctionBranch(
         "no-conflict",
         "Create-Entry",
-        async (scope: ScopeFacade) => {
+        async (scope) => {
           const entry = await repo.createScheduleEntry({
-            teacherId: scope.getGlobal("teacherId"),
-            classId: scope.getGlobal("classId"),
-            slot: scope.getGlobal("slot"),
-          });
-          scope.setGlobal("scheduleEntry", entry, "Schedule entry created successfully");
-          scope.setGlobal("status", "scheduled", "Assignment completed");
+            teacherId: scope.teacherId as string,
+            classId: scope.classId as string,
+            slot: scope.slot as Record<string, unknown>,
+          }) as ScheduleEntry;
+          scope.scheduleEntry = plain(entry);
+          scope.status = "scheduled";
         },
         "No conflicts — create the schedule entry",
       )
       .addFunctionBranch(
         "has-conflict",
         "Report-Conflict",
-        async (scope: ScopeFacade) => {
-          const conflicts = scope.getGlobal("conflicts") as readonly Record<string, unknown>[];
-          scope.setGlobal("status", "conflict",
-            `Cannot schedule — ${conflicts.length} conflict(s) found`,
-          );
+        async (scope) => {
+          const conflicts = scope.conflicts as Conflict[];
+          scope.status = `conflict: ${conflicts.length} conflict(s) found`;
         },
         "Conflicts detected — report them without creating an entry",
       )
       .end()
+
     .build();
 }

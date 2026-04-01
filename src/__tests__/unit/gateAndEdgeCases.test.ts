@@ -3,6 +3,7 @@ import { createSchoolPlatform } from "../../schoolPlatform.js";
 import { createMemoryProfileStore, createTenantContext } from "@footprint/platform";
 import { createMockRepository } from "../helpers.js";
 import { createMemoryOverrideStore } from "../../overrides/unitOverrides.js";
+import { resolveTerminologyLabel, schoolTerminologyFull } from "../../terminology/schoolTerms.js";
 
 const store = createMemoryProfileStore([
   { unitId: "k12-1", profileType: "k12", createdAt: "2024-01-01" },
@@ -211,6 +212,65 @@ describe("school type config edge cases", () => {
       expect(config!.type).toBe(type);
       expect(config!.theme.accent).toBeTruthy();
       expect(config!.schedulingPattern).toBeTruthy();
+    }
+  });
+});
+
+describe("full terminology resolver (singular/plural)", () => {
+  const platform = createSchoolPlatform({ profileStore: store, repository: repo });
+
+  it("returns singular/plural for K-12 student", async () => {
+    const ctx = createTenantContext({ tenantId: "t1", unitId: "k12-1" });
+    const resolve = await platform.getFullTermResolver(ctx);
+    const label = resolve("student");
+    expect(label).toEqual({ singular: "Student", plural: "Students" });
+  });
+
+  it("returns dance-specific labels", async () => {
+    const ctx = createTenantContext({ tenantId: "t1", unitId: "dance-1" });
+    const resolve = await platform.getFullTermResolver(ctx);
+    expect(resolve("student")).toEqual({ singular: "Dancer", plural: "Dancers" });
+    expect(resolve("parent")).toEqual({ singular: "Guardian", plural: "Guardians" });
+  });
+
+  it("returns kindergarten-specific labels", async () => {
+    const ctx = createTenantContext({ tenantId: "t1", unitId: "kinder-1" });
+    const resolve = await platform.getFullTermResolver(ctx);
+    expect(resolve("student")).toEqual({ singular: "Child", plural: "Children" });
+    expect(resolve("subject")).toEqual({ singular: "Activity", plural: "Activities" });
+  });
+
+  it("per-unit override takes priority in full resolver", async () => {
+    const overrideStore = createMemoryOverrideStore({
+      "dance-1": { terminologyOverrides: { student: "Performer" } },
+    });
+    const p = createSchoolPlatform({ profileStore: store, repository: repo, overrideStore });
+    const ctx = createTenantContext({ tenantId: "t1", unitId: "dance-1" });
+    const resolve = await p.getFullTermResolver(ctx);
+    expect(resolve("student").singular).toBe("Performer");
+  });
+
+  it("resolveTerminologyLabel returns correct label for all school types", () => {
+    expect(resolveTerminologyLabel("teacher", "music")).toEqual({ singular: "Instructor", plural: "Instructors" });
+    expect(resolveTerminologyLabel("teacher", "tutoring")).toEqual({ singular: "Tutor", plural: "Tutors" });
+    expect(resolveTerminologyLabel("period", "dance")).toEqual({ singular: "Time Slot", plural: "Time Slots" });
+  });
+
+  it("schoolTerminologyFull has entries for all 5 school types", () => {
+    const types = ["k12", "dance", "music", "kindergarten", "tutoring"];
+    for (const type of types) {
+      expect(schoolTerminologyFull[type]).toBeDefined();
+      expect(Object.keys(schoolTerminologyFull[type])).toHaveLength(16);
+    }
+  });
+
+  it("singular values match existing simple terminology resolver", async () => {
+    const ctx = createTenantContext({ tenantId: "t1", unitId: "dance-1" });
+    const simple = await platform.getTermResolver(ctx);
+    const full = await platform.getFullTermResolver(ctx);
+    const keys = ["student", "teacher", "grade", "section", "period"];
+    for (const key of keys) {
+      expect(full(key).singular).toBe(simple(key));
     }
   });
 });

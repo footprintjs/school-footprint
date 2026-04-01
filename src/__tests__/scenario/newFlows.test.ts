@@ -11,9 +11,9 @@ const repo = createMockRepository();
 describe("create grade flow", () => {
   it("creates a grade with required fields", async () => {
     const flow = createGradeFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Grade 1", code: "G1", sortOrder: 1 },
-    });
+    }});
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
 
@@ -23,9 +23,9 @@ describe("create grade flow", () => {
 
   it("rejects without name", async () => {
     const flow = createGradeFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: {},
-    });
+    }});
     await expect(executor.run()).rejects.toThrow("name is required");
   });
 
@@ -38,9 +38,9 @@ describe("create grade flow", () => {
 describe("create section flow", () => {
   it("creates a section with required fields", async () => {
     const flow = createSectionFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { gradeId: "grade-1", name: "Section A", capacity: 30 },
-    });
+    }});
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
 
@@ -50,9 +50,9 @@ describe("create section flow", () => {
 
   it("rejects without grade ID", async () => {
     const flow = createSectionFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { name: "Section A" },
-    });
+    }});
     await expect(executor.run()).rejects.toThrow("ID is required");
   });
 });
@@ -60,9 +60,9 @@ describe("create section flow", () => {
 describe("check availability flow", () => {
   it("checks availability successfully", async () => {
     const flow = createCheckAvailabilityFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { teacherId: "t1", slot: { dayOfWeek: 1, periodId: "P1" } },
-    });
+    }});
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
 
@@ -72,9 +72,9 @@ describe("check availability flow", () => {
 
   it("rejects without slot", async () => {
     const flow = createCheckAvailabilityFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { teacherId: "t1" },
-    });
+    }});
     await expect(executor.run()).rejects.toThrow("is required");
   });
 });
@@ -82,9 +82,9 @@ describe("check availability flow", () => {
 describe("calculate fees flow", () => {
   it("calculates fees for a student", async () => {
     const flow = createCalculateFeesFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: { studentId: "s1", periodId: "term-1" },
-    });
+    }});
     await executor.run();
     const state = executor.getSnapshot().sharedState as Record<string, unknown>;
 
@@ -94,9 +94,9 @@ describe("calculate fees flow", () => {
 
   it("rejects without student ID", async () => {
     const flow = createCalculateFeesFlow(repo);
-    const executor = new FlowChartExecutor(flow, undefined, undefined, {
+    const executor = new FlowChartExecutor(flow, { initialContext: {
       input: {},
-    });
+    }});
     await expect(executor.run()).rejects.toThrow("ID is required");
   });
 });
