@@ -161,6 +161,30 @@ export {
   getTermsForDomain,
 } from "./terminology/schoolTerms.js";
 
+// Narrative
+export {
+  createSchoolNarrativeRenderer,
+  buildTermReplacer,
+} from "./narrative/schoolNarrativeRenderer.js";
+export type { SchoolNarrativeRenderer } from "./narrative/schoolNarrativeRenderer.js";
+
+// Pause/Resume (approval workflows)
+export {
+  createApprovalStage,
+  resumeApproval,
+} from "./pause/approvalWorkflow.js";
+export type {
+  ApprovalDecision,
+  ApprovalStageConfig,
+} from "./pause/approvalWorkflow.js";
+
+// Trace analysis (causal chain + quality scoring)
+export {
+  explainResult,
+  createSchoolQualityScorer,
+} from "./trace/schoolTraceAnalysis.js";
+export type { TraceExplanation } from "./trace/schoolTraceAnalysis.js";
+
 // Shared helpers (for SIS service consumers)
 export {
   SCHOOL_TYPES_LIST,

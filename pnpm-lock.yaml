@@ -1,0 +1,73 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@footprint/actions':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/actions
+      '@footprint/adapters':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/adapters
+      '@footprint/features':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/features
+      '@footprint/platform':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/platform
+      '@footprint/seed':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/seed
+      '@footprint/tenancy':
+        specifier: workspace:*
+        version: link:../footprint-blueprint/packages/tenancy
+      footprintjs:
+        specifier: ^1.0.0
+        version: 1.0.0
+
+packages:
+
+  footprintjs@1.0.0:
+    resolution: {integrity: sha512-t+EwGC+iBmP+QvP7JivgXsbZWO5c372nbKodwURAdtH5kRFGynlh6W0NYCFjA7Z2vQoE75k/kUWgt2+3fAoQrg==}
+    engines: {node: '>=20'}
+    hasBin: true
+    peerDependencies:
+      zod: ^3.0.0 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
+  lodash.get@4.4.2:
+    resolution: {integrity: sha512-z+Uw/vLuy6gQe8cfaFWD7p0wVv8fJl3mbzXh33RS+0oW2wvUqiRXiQ69gLWSLpgB5/6sU+r6BlQR0MBILadqTQ==}
+    deprecated: This package is deprecated. Use the optional chaining (?.) operator instead.
+
+  lodash.has@4.5.2:
+    resolution: {integrity: sha512-rnYUdIo6xRCJnQmbVFEwcxF144erlD+M3YcJUVesflU9paQaE8p+fJDcIQrlMYbxoANFL+AB9hZrzSBBk5PL+g==}
+
+  lodash.mergewith@4.6.2:
+    resolution: {integrity: sha512-GK3g5RPZWTRSeLSpgP8Xhra+pnjBC56q9FZYe1d5RN3TJ35dbkGy3YqBSMbyCrlbi+CM9Z3Jk5yTL7RCsqboyQ==}
+
+  lodash.set@4.3.2:
+    resolution: {integrity: sha512-4hNPN5jlm/N/HLMCO43v8BXKq9Z7QdAGc/VGrRD61w8gN9g/6jF9A4L1pbUgBLCffi0w9VsXfTOij5x8iTyFvg==}
+
+snapshots:
+
+  footprintjs@1.0.0:
+    dependencies:
+      lodash.get: 4.4.2
+      lodash.has: 4.5.2
+      lodash.mergewith: 4.6.2
+      lodash.set: 4.3.2
+
+  lodash.get@4.4.2: {}
+
+  lodash.has@4.5.2: {}
+
+  lodash.mergewith@4.6.2: {}
+
+  lodash.set@4.3.2: {}
