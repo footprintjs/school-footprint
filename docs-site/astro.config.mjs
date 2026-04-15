@@ -31,19 +31,6 @@ export default defineConfig({
           ],
         },
         {
-          label: "Guides",
-          items: [
-            { label: "Add a School Type", slug: "guides/add-school-type" },
-            { label: "Add a Strategy", slug: "guides/add-strategy" },
-            { label: "Approval Workflows", slug: "guides/approval-workflows" },
-            { label: "Trace Analysis", slug: "guides/trace-analysis" },
-          ],
-        },
-        {
-          label: "API Reference",
-          autogenerate: { directory: "api" },
-        },
-        {
           label: "Examples",
           link: "https://github.com/footprintjs/school-footprint/tree/main/examples",
           attrs: { target: "_blank" },
