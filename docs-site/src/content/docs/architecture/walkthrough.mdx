@@ -7,11 +7,11 @@ sidebar:
 
 # Architecture Walkthrough
 
-This page explains the entire school-footprint architecture using a real-world analogy, then walks through 5 concrete scenarios step by step. By the end, you'll understand every layer.
+This page explains the entire school-footprint architecture using a real-world analogy, then walks through 6 steps step by step. By the end, you'll understand every layer.
 
 ---
 
-## Step 0: The Restaurant Analogy
+## Step 1: The Restaurant Analogy
 
 Before any code, let's build intuition.
 
@@ -63,7 +63,7 @@ Imagine you're building **"Shopify for Restaurants"** — one app that runs a Mc
 
 ---
 
-## Step 1: You Open a Dance School
+## Step 2: You Open a Dance School
 
 You tell the system: **"I'm a dance school."**
 
@@ -121,11 +121,11 @@ const platform = createSchoolPlatform({
 
 ---
 
-## Step 2: A Parent Enrolls Their Child
+## Step 3: A Parent Enrolls Their Child
 
 The parent fills a form: **"Enroll Alice in Ballet."**
 
-### Step 2a: Find the right flow
+### Step 3a: Find the right flow
 
 ```
 Action: "enroll-student"
@@ -153,7 +153,7 @@ The system looks up the ActionFlowRegistry:
 └─────────────────────────────────────────────────┘
 ```
 
-### Step 2b: Build the flow
+### Step 3b: Build the flow
 
 footprintjs builds a pipeline of stages:
 
@@ -176,7 +176,7 @@ Each stage has a **description** (the text after ←). This description powers:
 - AI understanding (LLMs read descriptions to reason about the flow)
 - The `describeService()` API (planning before execution)
 
-### Step 2c: Run it
+### Step 3c: Run it
 
 footprintjs executes each stage and records everything:
 
@@ -213,11 +213,11 @@ footprintjs executes each stage and records everything:
 
 ---
 
-## Step 3: The Instructor Schedules a Class
+## Step 4: The Instructor Schedules a Class
 
 The instructor says: **"Put Ballet Basics on Monday, Time Slot P1."**
 
-### Step 3a: Find the right strategy
+### Step 4a: Find the right strategy
 
 This is where the **strategy pattern** matters:
 
@@ -249,7 +249,7 @@ Strategy mapping looks up:
 └─────────────────────────────────────────────────┘
 ```
 
-### Step 3b: Build the scheduling flow
+### Step 4b: Build the scheduling flow
 
 This flow has a **decision point** — footprintjs handles branching:
 
@@ -274,7 +274,7 @@ flowChart("Validate-Assignment")
 
 The `◆` symbol means this is a **decider stage** — footprintjs records which branch was taken and why.
 
-### Step 3c: What footprintjs records automatically
+### Step 4c: What footprintjs records automatically
 
 ```
 Narrative (human-readable):
@@ -301,7 +301,7 @@ The output says "Instructor" instead of "Teacher", "Time Slot" instead of "Perio
 
 ---
 
-## Step 4: Something Goes Wrong — Explain It
+## Step 5: Something Goes Wrong — Explain It
 
 The next day, Instructor T1 is double-booked. The admin asks: **"Why?"**
 
@@ -337,7 +337,7 @@ before the other booking was committed.
 
 ---
 
-## Step 5: Approval Needed — Pause/Resume
+## Step 6: Approval Needed — Pause/Resume
 
 A new enrollment needs principal approval because the class is at capacity:
 
