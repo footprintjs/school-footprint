@@ -1,0 +1,40 @@
+---
+title: Why school-footprint?
+description: The problem it solves and the approach it takes
+---
+
+# Why school-footprint?
+
+## The Problem
+
+Every school type needs different software:
+- A **K-12** needs grades, sections, departments, and a fixed weekly timetable
+- A **dance studio** needs levels, styles, and flexible time-slot scheduling
+- A **music conservatory** needs instruments, 1-on-1 appointments, and per-lesson billing
+- A **kindergarten** needs age groups, activity blocks, and daily check-in
+
+Building separate software for each is expensive. Building one monolith means everyone gets features they don't need.
+
+## The Solution: Profile-Derived Context
+
+school-footprint uses a **single codebase** where one profile definition drives all behavior:
+
+```
+schoolType = "dance"  →  modules: [students, scheduling, fees]
+                      →  terminology: Student → Dancer
+                      →  scheduling: time-slots (not fixed-timetable)
+                      →  fees: per-class (not per-term)
+                      →  theme: rose
+```
+
+**Zero if/switch statements.** The profile drives behavior through registries and strategy mappings.
+
+## What Makes It Different
+
+| Traditional SIS | school-footprint |
+|---|---|
+| One school type hardcoded | 5 types from one codebase |
+| "Student" everywhere | Dancer, Child, Student — per school |
+| One scheduling algorithm | 5 strategies (auto-selected by profile) |
+| Untraceable operations | Every stage traced with narrative |
+| Tests need a database | 428 tests, zero DB needed |

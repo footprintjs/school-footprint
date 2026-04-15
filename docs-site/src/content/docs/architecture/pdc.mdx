@@ -1,0 +1,111 @@
+---
+title: Profile-Derived Context (PDC)
+description: One profile drives everything — modules, strategies, terminology, theme
+---
+
+# Profile-Derived Context (PDC)
+
+The most important pattern in school-footprint. **One profile definition drives all runtime behavior.**
+
+## How It Works
+
+When you say "I'm a dance school", this happens:
+
+```
+Input: schoolType = "dance"
+                │
+                ▼
+        ┌── danceProfile ──┐
+        │                   │
+        ▼                   ▼
+   Modules ON:         Modules OFF:
+   ✓ students          ✗ departments
+   ✓ academics         ✗ workflow
+   ✓ attendance
+   ✓ scheduling
+   ✓ fees
+        │
+        ├── Terminology: Student → Dancer, Grade → Level
+        ├── Scheduling:  time-slots strategy
+        ├── Fee model:   per-class strategy
+        └── Theme:       rose (#c0506a)
+```
+
+## Step by Step
+
+### Step 1: Define a profile
+
+```typescript
+// profiles/schoolProfiles.ts
+export const danceProfile = defineProfile({
+  id: "dance",
+  displayName: "Dance Studio",
+  modules: [students, academics, attendance, scheduling, fees],
+  config: {
+    schedulingPattern: "time-slots",
+    services: { org: true, people: true, academics: true, scheduling: true },
+    moduleFlags: { grades: true, sections: true, attendance: true },
+    theme: { label: "Rose", accent: "#c0506a" },
+  },
+});
+```
+
+### Step 2: Profile selects strategies
+
+```typescript
+// strategies/strategyMappings.ts
+export const schoolStrategyMappings = [
+  {
+    capabilityId: "schedule-class",
+    profileAdapters: {
+      k12: "fixed-timetable",      // rigid weekly grid
+      dance: "time-slots",          // flexible start/end, drop-ins
+      music: "appointments",        // 1-on-1 lesson booking
+      kindergarten: "activity-blocks", // morning/afternoon blocks
+      tutoring: "flexible-slots",   // any available window
+    },
+  },
+];
+```
+
+### Step 3: Profile configures terminology
+
+```typescript
+// The same action says different things per school type:
+//
+// K-12:         "Enrolled Student Alice in Grade 5"
+// Dance:        "Enrolled Dancer Alice in Level 3"
+// Kindergarten: "Enrolled Child Alice in Age Group Pre-K"
+```
+
+### Step 4: Zero code changes
+
+Adding a new school type (e.g., "martial-arts") requires:
+
+1. One profile definition (20 lines)
+2. One terminology entry per term (16 lines)
+3. One strategy mapping (2 lines)
+4. **Zero changes to flows, routes, or services**
+
+## The 5 School Types
+
+| Type | Scheduling | Theme | Unique Feature |
+|---|---|---|---|
+| **k12** | Fixed Timetable | Teal | Departments, streams, workflow |
+| **dance** | Time Slots | Rose | Drop-in classes, flexible timing |
+| **music** | Appointments | Indigo | 1-on-1 instrument lessons |
+| **kindergarten** | Activity Blocks | Green | Age groups, no formal grading |
+| **tutoring** | Flexible Slots | Slate | Any-window booking, per-session fees |
+
+## Why "Profile-Derived"?
+
+The profile is the **single source of truth**. It's not a configuration file that's read once — it's the context that every layer uses to make decisions at runtime.
+
+```
+Profile → Module registry → "Is attendance enabled?" → YES/NO
+Profile → Strategy bridge → "Which scheduler?" → time-slots
+Profile → Term resolver  → "What's a Student called?" → Dancer
+Profile → Theme tokens   → "What color?" → rose
+```
+
+No if/switch on `schoolType` anywhere in the codebase. The profile drives behavior through registries and mappings.

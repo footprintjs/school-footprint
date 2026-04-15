@@ -1,0 +1,119 @@
+---
+title: Flow Execution
+description: How footprintjs runs school operations with full tracing
+---
+
+# Flow Execution
+
+Every school operation (enroll student, schedule class, create grade) is a **footprintjs flow** — a pipeline of stages that executes with automatic tracing.
+
+## Anatomy of a Flow
+
+```
+enrollmentFlow:
+  Validate-Input ──→ Prepare-Context ──→ Enroll-Student ──→ Link-Grade
+       │                    │                    │                │
+       ▼                    ▼                    ▼                ▼
+  Check required       Resolve family      Call repository    Assign to
+  fields exist         linkage             createStudent()    grade/level
+```
+
+In code:
+
+```typescript
+function createEnrollmentFlow(repo: SchoolRepository, t?: TermResolver): FlowChart {
+  return flowChart("Validate-Input", async (scope) => {
+    const input = scope.getValue("input");
+    if (!input.firstName) throw new Error("First name required");
+    scope.setValue("validatedInput", input);
+  }, "validate-input", undefined, "Validate that required enrollment fields are present")
+
+  .addFunction("Prepare-Context", async (scope) => {
+    // Resolve family linkage
+  }, "prepare-context", "Resolve family linkage based on familyId")
+
+  .addFunction("Enroll-Student", async (scope) => {
+    const student = await repo.createStudent(scope.getValue("validatedInput"));
+    scope.setValue("createdStudent", student);
+  }, "enroll-student", "Create student record in repository")
+
+  .addFunction("Link-Grade", async (scope) => {
+    // Assign to grade if specified
+  }, "link-grade", "Assign student to grade if specified")
+
+  .build();
+}
+```
+
+## The 8 Flows
+
+| Flow | Stages | Decision Points | Description |
+|---|---|---|---|
+| **enrollmentFlow** | 4 | 0 | Validate → Prepare → Enroll → Link |
+| **attendanceFlow** | 3+ | 1 decider | Validate → Create → Decide(mark/skip) |
+| **schedulingFlow** | 3+ | 1 decider | Validate → Check → Decide(create/conflict) |
+| **availabilityFlow** | 2 | 0 | Validate → Check |
+| **gradeFlow** | 2 | 0 | Validate → Create |
+| **sectionFlow** | 2 | 0 | Validate → Create |
+| **feesFlow** | 2 | 0 | Validate → Calculate |
+| **operationsFlow** | 2+ | 1 selector | Route → Select(enroll/attend/schedule) |
+
+## What footprintjs Records
+
+When a flow runs, footprintjs automatically captures:
+
+```
+Narrative:
+  "Step 1: Validate-Input — Validate that required enrollment fields are present
+     Read input: {firstName: "Alice", lastName: "Smith"}
+     Wrote validatedInput: {firstName: "Alice", lastName: "Smith"}
+
+   Step 2: Enroll-Student — Create student record in repository
+     Read validatedInput: {firstName: "Alice", ...}
+     Wrote createdStudent: {id: 42, firstName: "Alice", ...}"
+
+Metrics:
+  validate-input:  2ms
+  enroll-student:  15ms
+
+Snapshot:
+  Full state tree of every stage's reads and writes
+```
+
+## Decision Flows
+
+Some flows use `decide()` to branch:
+
+```typescript
+// schedulingFlow — conflict detection
+.addDeciderFunction("Conflict-Decision", (scope) => {
+  const conflicts = scope.getValue("conflicts");
+  return conflicts.length === 0 ? "no-conflict" : "has-conflict";
+}, "conflict-decision", "Route based on conflict detection result")
+  .addFunctionBranch("no-conflict", "Create-Entry", async (scope) => {
+    // Create the schedule entry
+  })
+  .addFunctionBranch("has-conflict", "Report-Conflict", async (scope) => {
+    // Return conflict details
+  })
+  .end()
+```
+
+The decision is recorded in the narrative:
+```
+Decision Conflict-Decision: chose "no-conflict"
+```
+
+## Where footprintjs IS and IS NOT Used
+
+| Component | Uses footprintjs? | Why |
+|---|---|---|
+| 8 flow files | **YES** | Build and run pipelines |
+| serviceComposer | **YES** | FlowChartExecutor, ManifestRecorder |
+| modules/ | No | Pure config objects |
+| profiles/ | No | Pure config objects |
+| strategies/ | No | Pure functions (call repo directly) |
+| terminology/ | No | Pure data |
+| types.ts | No | Pure TypeScript interfaces |
+
+**Key insight**: footprintjs is used in only ~10% of the codebase. Everything else is pure configuration and functions.

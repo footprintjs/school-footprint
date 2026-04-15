@@ -1,0 +1,56 @@
+---
+title: Quick Start
+description: Create a school platform in under 5 minutes
+---
+
+# Quick Start
+
+## Install
+
+```bash
+npm install school-footprint footprintjs
+```
+
+## Create a Platform
+
+```typescript
+import {
+  createSchoolPlatform,
+  createMemoryProfileStore,
+  createStubRepository,
+} from "school-footprint";
+
+const platform = createSchoolPlatform({
+  profileStore: createMemoryProfileStore([
+    { unitId: "dance-1", profileType: "dance", createdAt: "2024-01-01" },
+  ]),
+  repository: createStubRepository("my-app"),
+});
+```
+
+## Run a Flow
+
+```typescript
+const ctx = { tenantId: "t1", campusId: "c1", unitId: "dance-1" };
+
+const result = await platform.executeServiceFlow(ctx, "enroll-student", {
+  firstName: "Alice",
+  lastName: "Smith",
+});
+
+console.log(result.status);     // "ok"
+console.log(result.narrative);  // Step-by-step trace
+```
+
+## What You Get
+
+- **8 service flows** (enrollment, scheduling, attendance, grading, fees, ...)
+- **5 school types** with automatic terminology, theme, and strategy switching
+- **Full tracing** — every stage records reads, writes, and narrative
+- **428 tests** — all run without a database
+
+## Next Steps
+
+- [Key Concepts](/school-footprint/getting-started/key-concepts/) — understand PDC, strategies, flows
+- [Architecture](/school-footprint/architecture/overview/) — the 4-layer stack
+- [Examples](https://github.com/footprintjs/school-footprint/tree/main/examples) — 7 runnable examples

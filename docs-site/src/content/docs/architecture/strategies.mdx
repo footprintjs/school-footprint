@@ -1,0 +1,118 @@
+---
+title: Strategies (Behavior Switching)
+description: Same capability, different business logic per school type
+---
+
+# Strategies
+
+A **strategy** is a different implementation of the same capability. "Schedule a class" works differently at a K-12 school than at a dance studio — but the interface is the same.
+
+## Why "Strategy" not "Adapter"?
+
+| Term | Means | Example |
+|---|---|---|
+| **Adapter** | Different infrastructure, same behavior | Postgres adapter vs MongoDB adapter |
+| **Strategy** | Same infrastructure, different behavior | Fixed timetable vs time-slots |
+
+Our strategies all use the same `SchoolRepository` (same database). They differ in **business logic** — which fields matter, how conflicts are detected, what the output looks like.
+
+## The 10 Strategies
+
+### Scheduling Strategies (5)
+
+Each implements `"schedule-class"` differently:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Capability: "schedule-class"                                 │
+│                                                              │
+│  K-12 → fixed-timetable                                     │
+│    Input:  { dayOfWeek: "MON", periodId: "P3" }             │
+│    Logic:  Check weekly grid → assign if empty               │
+│                                                              │
+│  Dance → time-slots                                          │
+│    Input:  { startTime: "14:00", duration: 60, date: "..." }│
+│    Logic:  Check time range overlap → assign if no conflict  │
+│                                                              │
+│  Music → appointments                                        │
+│    Input:  { studentId, startTime, duration, instrument }    │
+│    Logic:  1-on-1 booking → check teacher availability       │
+│                                                              │
+│  Kindergarten → activity-blocks                              │
+│    Input:  { ageGroupId, activityId, blockIndex, dayOfWeek } │
+│    Logic:  Morning/afternoon block assignment                │
+│                                                              │
+│  Tutoring → flexible-slots                                   │
+│    Input:  { tutorId, studentId, requestedTime, duration }   │
+│    Logic:  Any-window matching → first available slot        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Fee Strategies (5)
+
+Each implements `"calculate-fees"` differently:
+
+| Strategy | School Type | How it charges |
+|---|---|---|
+| `per-term-fees` | K-12 | Fixed amount per academic term |
+| `per-class-fees` | Dance | Multiply by number of classes attended |
+| `per-lesson-fees` | Music | Per instrument lesson (may vary by instrument) |
+| `per-month-fees` | Kindergarten | Monthly flat rate |
+| `per-session-fees` | Tutoring | Per tutoring session booked |
+
+## How Strategy Selection Works
+
+```
+1. User action: "schedule-class"
+2. Profile says: schoolType = "dance"
+3. Strategy mapping says: dance → "time-slots"
+4. ServiceBridge routes to: timeSlotsStrategy
+5. Strategy executes: check conflicts → create entry
+6. Result: { scheduled: true, pattern: "time-slots", entry: {...} }
+```
+
+No if/switch anywhere. The mapping is declarative:
+
+```typescript
+{
+  capabilityId: "schedule-class",
+  profileAdapters: {
+    k12: "fixed-timetable",
+    dance: "time-slots",
+    music: "appointments",
+    kindergarten: "activity-blocks",
+    tutoring: "flexible-slots",
+  },
+}
+```
+
+## Adding a New Strategy
+
+To add a martial arts scheduling strategy:
+
+```typescript
+// 1. Define the strategy (strategies/schedulingStrategies.ts)
+const martialArtsScheduler: Adapter = {
+  id: "belt-progression",
+  name: "Belt Progression Scheduler",
+  capabilityId: "schedule-class",
+  async execute(input, context) {
+    const { teacherId, beltLevel, classId, dayOfWeek, dojo } = input;
+    const conflicts = await repo.findConflicts({ teacherId, classId, slot: { beltLevel, dayOfWeek } });
+    if (conflicts.length > 0) return { scheduled: false, conflicts };
+    const entry = await repo.createScheduleEntry({ teacherId, classId, slot: { beltLevel, dayOfWeek, dojo } });
+    return { scheduled: true, pattern: "belt-progression", entry };
+  },
+};
+
+// 2. Map it (strategies/strategyMappings.ts)
+{
+  capabilityId: "schedule-class",
+  profileAdapters: {
+    // ... existing
+    "martial-arts": "belt-progression",
+  },
+}
+```
+
+Zero changes to flows, routes, or the executor.

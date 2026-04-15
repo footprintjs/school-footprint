@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "paths": {
+      "school-footprint": ["../src/index.ts"],
+      "footprintjs": ["../../sis-platform/node_modules/footprintjs/dist/types/index.d.ts"],
+      "footprintjs/trace": ["../../sis-platform/node_modules/footprintjs/dist/types/trace.d.ts"],
+      "footprintjs/recorders": ["../../sis-platform/node_modules/footprintjs/dist/types/recorders.d.ts"]
+    }
+  },
+  "include": ["**/*.ts"]
+}

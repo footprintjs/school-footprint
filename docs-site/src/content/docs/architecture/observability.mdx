@@ -1,0 +1,83 @@
+---
+title: Observability
+description: Narrative, trace analysis, quality scoring, and approval workflows
+---
+
+# Observability
+
+Every flow execution is fully observable. Four systems work together:
+
+## 1. Narrative Renderer
+
+Turns flow execution into human-readable text with school-specific terminology.
+
+```
+K-12:   "Step 1: Enroll-Student — Register a new Student in the system"
+Dance:  "Step 1: Enroll-Dancer — Register a new Dancer in the system"
+```
+
+```typescript
+import { createSchoolNarrativeRenderer } from "school-footprint";
+
+const renderer = createSchoolNarrativeRenderer("dance");
+// "Student" → "Dancer", "Grade" → "Level", "Section" → "Style"
+```
+
+## 2. Trace Analysis (Causal Chain)
+
+After execution, ask: **"What stages caused this result?"**
+
+```typescript
+import { explainResult } from "school-footprint";
+
+const explanation = explainResult(executor, "conflictDetected");
+// → "conflictDetected ← assign-room#2 ← load-teacher#1 ← load-periods#0"
+```
+
+This uses backward program slicing — tracing reads and writes backward through the commit log to find every stage that contributed data.
+
+## 3. Quality Scoring
+
+Score each stage's output quality on a 0-1 scale:
+
+```typescript
+import { createSchoolQualityScorer } from "school-footprint";
+
+const scorer = createSchoolQualityScorer();
+// Penalizes: error keys (-0.3), error status (-0.2), null writes (proportional)
+```
+
+## 4. Approval Workflows (Pause/Resume)
+
+Flows can pause for human review and resume later:
+
+```
+Intake → Validate → ⏸ Principal-Review → Finalize
+                          │
+                     checkpoint saved
+                     (JSON, store in DB)
+                          │
+                     hours later...
+                          │
+                     principal approves
+                          │
+                     ▶ flow resumes
+```
+
+```typescript
+import { createApprovalStage, resumeApproval } from "school-footprint";
+
+// Build a pausable stage
+const chart = flowChart("Intake", seedFn, "intake")
+  .addPausableFunction(...createApprovalStage({
+    name: "Principal-Review",
+    stageId: "review",
+    buildReviewPayload: (scope) => ({
+      studentName: scope.getValue("studentName"),
+    }),
+    applyDecision: (scope, decision) => {
+      scope.setValue("approved", decision.approved);
+    },
+  }))
+  .build();
+```

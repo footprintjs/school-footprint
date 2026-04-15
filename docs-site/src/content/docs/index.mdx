@@ -1,0 +1,31 @@
+---
+title: school-footprint
+description: Shopify for Schools — configurable SIS engine for any school type
+template: splash
+hero:
+  tagline: One codebase. Five school types. Zero code changes to switch.
+  actions:
+    - text: Quick Start
+      link: /school-footprint/getting-started/quick-start/
+      icon: right-arrow
+    - text: Architecture
+      link: /school-footprint/architecture/overview/
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="5 School Types" icon="star">
+    K-12, Dance, Music, Kindergarten, Tutoring — each with its own modules, terminology, scheduling, and theme.
+  </Card>
+  <Card title="Profile-Derived Context" icon="setting">
+    One profile drives everything. Add a school type with one file, zero code changes.
+  </Card>
+  <Card title="10 Strategies" icon="puzzle">
+    5 scheduling + 5 fee strategies. Same capability, different business logic per school type.
+  </Card>
+  <Card title="8 Traced Flows" icon="document">
+    Every operation is a footprintjs flow with automatic narrative, metrics, and causal tracing.
+  </Card>
+</CardGrid>

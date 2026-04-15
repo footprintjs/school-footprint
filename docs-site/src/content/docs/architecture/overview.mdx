@@ -1,0 +1,118 @@
+---
+title: Architecture Overview
+description: The 4-layer stack explained step by step
+---
+
+# Architecture Overview
+
+school-footprint uses a **4-layer architecture** where each layer has one job and never reaches into the layer above it.
+
+## The Restaurant Analogy
+
+Before diving into code, think of it like building software for a restaurant franchise:
+
+| Restaurant | School | Code |
+|---|---|---|
+| Restaurant type (McDonald's, Sushi Bar) | School type (K-12, Dance) | `SchoolType` |
+| Menu ("Combo", "Set") | Terminology ("Student" → "Dancer") | `schoolTerminology` |
+| Recipe (grill → flip → serve) | Flow (validate → check → create) | `flowChart()` |
+| Kitchen equipment (grill vs oven) | Strategy (fixed-timetable vs time-slots) | `strategies/` |
+| Franchise HQ template | Profile (modules + theme + terms) | `danceProfile` |
+
+**One codebase runs McDonald's AND the Sushi Bar.** Same ordering system, different menus, different recipes, different equipment.
+
+## The 4 Layers
+
+```
+Layer 4: sis-platform          → Fastify + Prisma + React (HTTP, DB, UI)
+Layer 3: school-footprint      → Pure domain (modules, strategies, flows)
+Layer 2: @footprint/* blueprint → Pure registries (profiles, capabilities)
+Layer 1: footprintjs           → Flow execution engine (zero dependencies)
+```
+
+### Step 1: The Engine (Layer 1 — footprintjs)
+
+footprintjs is a flow execution engine. It runs a pipeline of stages and records everything.
+
+```typescript
+import { flowChart, FlowChartExecutor } from "footprintjs";
+
+const chart = flowChart("Validate", async (scope) => {
+  const name = scope.getValue("input").name;
+  if (!name) throw new Error("Name required");
+  scope.setValue("validatedName", name);
+})
+.addFunction("Create", async (scope) => {
+  // Do something with validatedName
+})
+.build();
+
+const executor = new FlowChartExecutor(chart);
+await executor.run({ input: { name: "Alice" } });
+```
+
+**What you get**: automatic narrative, metrics, tracing, and a snapshot of every read/write.
+
+**Where it's used**: Only in the Flow Layer (8 flow files + 1 composer). Everything else is pure config.
+
+### Step 2: The Framework (Layer 2 — @footprint/*)
+
+Six packages that provide domain-agnostic building blocks:
+
+| Package | Job | Example |
+|---|---|---|
+| `features` | Module + profile registries | `defineModule("students", ...)` |
+| `adapters` | Capability routing | `createServiceBridge(...)` |
+| `tenancy` | Multi-tenant context | `createTenantContext(...)` |
+| `seed` | Test data generation | `generateSeedPlan(...)` |
+| `actions` | Action definitions for MCP/LLM | `createActionExecutor(...)` |
+| `platform` | Wires all 5 together | `createPlatform(config)` |
+
+**No school concepts here.** This layer doesn't know what a "Student" or "Grade" is.
+
+### Step 3: The Domain (Layer 3 — school-footprint)
+
+This is where school concepts live. Everything is configuration:
+
+```
+school-footprint/
+├── modules/       → 7 modules (students, academics, attendance, ...)
+├── profiles/      → 5 school types (k12, dance, music, ...)
+├── strategies/    → 10 behavior strategies (5 scheduling + 5 fee)
+├── flows/         → 8 footprintjs flows (enrollment, scheduling, ...)
+├── terminology/   → 16 configurable terms per school type
+├── narrative/     → School-specific narrative rendering
+├── pause/         → Approval workflow support
+├── trace/         → Causal chain analysis
+└── types.ts       → SchoolRepository (10-method port interface)
+```
+
+**Zero framework imports.** No Fastify, Prisma, Express, or React anywhere in this layer.
+
+### Step 4: The Platform (Layer 4 — sis-platform)
+
+Only here do frameworks appear:
+
+```
+sis-platform/
+├── apps/
+│   ├── org-service        → Fastify + Prisma (school profiles)
+│   ├── people-service     → Fastify + Prisma (students, families)
+│   ├── academics-service  → Fastify + Prisma (grades, sections)
+│   ├── scheduling-service → Fastify + Prisma (timetables)
+│   └── web                → React + Vite (frontend)
+├── packages/
+│   └── shared             → requestFootprint plugin (Fastify middleware)
+```
+
+**The rule**: Layer 4 depends on Layer 3. Layer 3 never imports from Layer 4.
+
+## Why This Matters
+
+| Question | Answer |
+|---|---|
+| Can I test without a database? | Yes — 428 tests run with zero DB |
+| Can I swap Fastify for Express? | Yes — only Layer 4 changes |
+| Can I add a new school type? | Yes — one profile file, zero code changes |
+| Can an LLM understand my flows? | Yes — every stage has narrative + trace |
+| Can I explain a scheduling conflict? | Yes — `explainResult()` traces the causal chain |

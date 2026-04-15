@@ -1,0 +1,40 @@
+---
+title: Key Concepts
+description: The 6 concepts you need to understand
+---
+
+# Key Concepts
+
+## 1. School Type
+
+A string (`"k12"`, `"dance"`, `"music"`, `"kindergarten"`, `"tutoring"`) that drives all behavior.
+
+## 2. Profile
+
+A configuration object that declares: which modules are enabled, what scheduling pattern to use, what terminology to apply, and what theme to show. See [PDC](/school-footprint/architecture/pdc/).
+
+## 3. Strategy
+
+A different implementation of the same capability. `"schedule-class"` uses `fixed-timetable` for K-12 and `time-slots` for dance. See [Strategies](/school-footprint/architecture/strategies/).
+
+## 4. Flow
+
+A footprintjs pipeline (Validate → Check → Create). Every stage is traced. See [Flows](/school-footprint/architecture/flows/).
+
+## 5. SchoolRepository
+
+A 10-method port interface. You implement it with your database (Prisma, Mongo, etc.). school-footprint never touches your DB directly.
+
+```typescript
+type SchoolRepository = {
+  createStudent: (input) => Promise<Student>;
+  findStudents: (query) => Promise<Student[]>;
+  createScheduleEntry: (input) => Promise<ScheduleEntry>;
+  findConflicts: (input) => Promise<Conflict[]>;
+  // ... 6 more methods
+};
+```
+
+## 6. Terminology
+
+16 configurable terms per school type. "Student" becomes "Dancer" for dance, "Child" for kindergarten. Applied throughout narrative, UI, and API responses.
