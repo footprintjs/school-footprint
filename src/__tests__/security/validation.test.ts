@@ -3,7 +3,7 @@ import { createSchoolPlatform } from "../../schoolPlatform.js";
 import { createMemoryProfileStore, createTenantContext } from "@footprint/platform";
 import { createMockRepository } from "../helpers.js";
 import { createSchoolServiceRegistry } from "../../flows/schoolServiceComposer.js";
-import { createSchedulingAdapters } from "../../adapters/index.js";
+import { createSchedulingStrategies } from "../../strategies/index.js";
 import { createMemoryOverrideStore } from "../../overrides/unitOverrides.js";
 
 const SCHOOL_TYPES = ["k12", "dance", "music", "kindergarten", "tutoring"] as const;
@@ -206,7 +206,7 @@ describe("security: override store isolation", () => {
 
 describe("security: adapter execution boundaries", () => {
   it("scheduling adapter does not expose internal repo state", async () => {
-    const adapters = createSchedulingAdapters(repo);
+    const adapters = createSchedulingStrategies(repo);
     const adapter = adapters.find((a) => a.id === "fixed-timetable")!;
 
     const result = (await adapter.execute(

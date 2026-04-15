@@ -92,24 +92,24 @@ export {
   allSchoolCapabilities,
 } from "./capabilities/index.js";
 
-// Adapters
+// Strategies
 export {
-  createSchedulingAdapters,
-  createFeeAdapters,
-  fixedTimetableAdapter,
-  timeSlotsAdapter,
-  appointmentsAdapter,
-  activityBlocksAdapter,
-  flexibleSlotsAdapter,
-  allSchedulingAdapters,
-  perTermFeeAdapter,
-  perClassFeeAdapter,
-  perLessonFeeAdapter,
-  perMonthFeeAdapter,
-  perSessionFeeAdapter,
-  allFeeAdapters,
-  schoolAdapterMappings,
-} from "./adapters/index.js";
+  createSchedulingStrategies,
+  createFeeStrategies,
+  fixedTimetableStrategy,
+  timeSlotsStrategy,
+  appointmentsStrategy,
+  activityBlocksStrategy,
+  flexibleSlotsStrategy,
+  allSchedulingStrategies,
+  perTermFeeStrategy,
+  perClassFeeStrategy,
+  perLessonFeeStrategy,
+  perMonthFeeStrategy,
+  perSessionFeeStrategy,
+  allFeeStrategies,
+  schoolStrategyMappings,
+} from "./strategies/index.js";
 
 // Actions
 export {

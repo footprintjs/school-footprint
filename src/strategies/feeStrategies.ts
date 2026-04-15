@@ -2,10 +2,10 @@ import type { Adapter } from "@footprint/adapters";
 import type { SchoolRepository } from "../types.js";
 
 /**
- * Create all 5 fee adapters with repository access.
+ * Create all 5 fee strategies with repository access.
  * Each adapter delegates fee calculation to the repository with model-specific parameters.
  */
-export function createFeeAdapters(repo: SchoolRepository): readonly Adapter[] {
+export function createFeeStrategies(repo: SchoolRepository): readonly Adapter[] {
   const perTerm: Adapter = {
     id: "per-term-fees",
     name: "Per-Term Fee Calculator",
@@ -82,27 +82,27 @@ export function createFeeAdapters(repo: SchoolRepository): readonly Adapter[] {
 }
 
 // Static references for adapter registry bootstrapping
-export const perTermFeeAdapter: Adapter = {
+export const perTermFeeStrategy: Adapter = {
   id: "per-term-fees", name: "Per-Term Fee Calculator", capabilityId: "calculate-fees",
   async execute(input) { return { model: "per-term", ...(input as Record<string, unknown>), calculated: true }; },
 };
-export const perClassFeeAdapter: Adapter = {
+export const perClassFeeStrategy: Adapter = {
   id: "per-class-fees", name: "Per-Class Fee Calculator", capabilityId: "calculate-fees",
   async execute(input) { return { model: "per-class", ...(input as Record<string, unknown>), calculated: true }; },
 };
-export const perLessonFeeAdapter: Adapter = {
+export const perLessonFeeStrategy: Adapter = {
   id: "per-lesson-fees", name: "Per-Lesson Fee Calculator", capabilityId: "calculate-fees",
   async execute(input) { return { model: "per-lesson", ...(input as Record<string, unknown>), calculated: true }; },
 };
-export const perMonthFeeAdapter: Adapter = {
+export const perMonthFeeStrategy: Adapter = {
   id: "per-month-fees", name: "Per-Month Fee Calculator", capabilityId: "calculate-fees",
   async execute(input) { return { model: "per-month", ...(input as Record<string, unknown>), calculated: true }; },
 };
-export const perSessionFeeAdapter: Adapter = {
+export const perSessionFeeStrategy: Adapter = {
   id: "per-session-fees", name: "Per-Session Fee Calculator", capabilityId: "calculate-fees",
   async execute(input) { return { model: "per-session", ...(input as Record<string, unknown>), calculated: true }; },
 };
 
-export const allFeeAdapters: readonly Adapter[] = [
-  perTermFeeAdapter, perClassFeeAdapter, perLessonFeeAdapter, perMonthFeeAdapter, perSessionFeeAdapter,
+export const allFeeStrategies: readonly Adapter[] = [
+  perTermFeeStrategy, perClassFeeStrategy, perLessonFeeStrategy, perMonthFeeStrategy, perSessionFeeStrategy,
 ];

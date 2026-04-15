@@ -2,10 +2,10 @@ import type { Adapter } from "@footprint/adapters";
 import type { SchoolRepository } from "../types.js";
 
 /**
- * Create all 5 scheduling adapters with repository access.
+ * Create all 5 scheduling strategies with repository access.
  * Each adapter checks for conflicts, then creates an entry if none found.
  */
-export function createSchedulingAdapters(repo: SchoolRepository): readonly Adapter[] {
+export function createSchedulingStrategies(repo: SchoolRepository): readonly Adapter[] {
   const fixedTimetable: Adapter = {
     id: "fixed-timetable",
     name: "Fixed Timetable Scheduler",
@@ -114,28 +114,28 @@ export function createSchedulingAdapters(repo: SchoolRepository): readonly Adapt
   return [fixedTimetable, timeSlots, appointments, activityBlocks, flexibleSlots];
 }
 
-// Static references for adapter registry bootstrapping (used when no repo needed yet)
-export const fixedTimetableAdapter: Adapter = {
+// Static references for strategy registry bootstrapping (used when no repo needed yet)
+export const fixedTimetableStrategy: Adapter = {
   id: "fixed-timetable", name: "Fixed Timetable Scheduler", capabilityId: "schedule-class",
   async execute(input) { return { scheduled: true, pattern: "fixed-timetable", entry: input }; },
 };
-export const timeSlotsAdapter: Adapter = {
+export const timeSlotsStrategy: Adapter = {
   id: "time-slots", name: "Time Slot Scheduler", capabilityId: "schedule-class",
   async execute(input) { return { scheduled: true, pattern: "time-slots", entry: input }; },
 };
-export const appointmentsAdapter: Adapter = {
+export const appointmentsStrategy: Adapter = {
   id: "appointments", name: "Appointment Scheduler", capabilityId: "schedule-class",
   async execute(input) { return { scheduled: true, pattern: "appointments", entry: input }; },
 };
-export const activityBlocksAdapter: Adapter = {
+export const activityBlocksStrategy: Adapter = {
   id: "activity-blocks", name: "Activity Block Scheduler", capabilityId: "schedule-class",
   async execute(input) { return { scheduled: true, pattern: "activity-blocks", entry: input }; },
 };
-export const flexibleSlotsAdapter: Adapter = {
+export const flexibleSlotsStrategy: Adapter = {
   id: "flexible-slots", name: "Flexible Slot Scheduler", capabilityId: "schedule-class",
   async execute(input) { return { scheduled: true, pattern: "flexible-slots", entry: input }; },
 };
 
-export const allSchedulingAdapters: readonly Adapter[] = [
-  fixedTimetableAdapter, timeSlotsAdapter, appointmentsAdapter, activityBlocksAdapter, flexibleSlotsAdapter,
+export const allSchedulingStrategies: readonly Adapter[] = [
+  fixedTimetableStrategy, timeSlotsStrategy, appointmentsStrategy, activityBlocksStrategy, flexibleSlotsStrategy,
 ];

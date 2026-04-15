@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { createSchedulingAdapters } from "../../adapters/schedulingAdapters.js";
-import { createFeeAdapters } from "../../adapters/feeAdapters.js";
+import { createSchedulingStrategies } from "../../strategies/schedulingStrategies.js";
+import { createFeeStrategies } from "../../strategies/feeStrategies.js";
 import { createMockRepository, createConflictingRepository } from "../helpers.js";
 
 describe("scheduling adapter factories", () => {
   const repo = createMockRepository();
-  const adapters = createSchedulingAdapters(repo);
+  const adapters = createSchedulingStrategies(repo);
 
   it("creates 5 scheduling adapters", () => {
     expect(adapters).toHaveLength(5);
@@ -25,7 +25,7 @@ describe("scheduling adapter factories", () => {
   });
 
   it("fixed-timetable returns conflicts when teacher busy", async () => {
-    const conflictAdapters = createSchedulingAdapters(createConflictingRepository());
+    const conflictAdapters = createSchedulingStrategies(createConflictingRepository());
     const adapter = conflictAdapters.find((a) => a.id === "fixed-timetable")!;
     const result = (await adapter.execute(
       { teacherId: "t1", classId: "c1", dayOfWeek: 1, periodId: "P1" },
@@ -49,7 +49,7 @@ describe("scheduling adapter factories", () => {
   });
 
   it("time-slots returns conflicts when teacher busy", async () => {
-    const conflictAdapters = createSchedulingAdapters(createConflictingRepository());
+    const conflictAdapters = createSchedulingStrategies(createConflictingRepository());
     const adapter = conflictAdapters.find((a) => a.id === "time-slots")!;
     const result = (await adapter.execute(
       { teacherId: "t1", classId: "c1", startTime: "10:00", duration: 60, date: "2025-03-12" },
@@ -73,7 +73,7 @@ describe("scheduling adapter factories", () => {
   });
 
   it("appointments returns conflicts when teacher busy", async () => {
-    const conflictAdapters = createSchedulingAdapters(createConflictingRepository());
+    const conflictAdapters = createSchedulingStrategies(createConflictingRepository());
     const adapter = conflictAdapters.find((a) => a.id === "appointments")!;
     const result = (await adapter.execute(
       { teacherId: "t1", studentId: "s1", startTime: "14:00", duration: 30, instrument: "violin" },
@@ -97,7 +97,7 @@ describe("scheduling adapter factories", () => {
   });
 
   it("activity-blocks returns conflicts when teacher busy", async () => {
-    const conflictAdapters = createSchedulingAdapters(createConflictingRepository());
+    const conflictAdapters = createSchedulingStrategies(createConflictingRepository());
     const adapter = conflictAdapters.find((a) => a.id === "activity-blocks")!;
     const result = (await adapter.execute(
       { teacherId: "t1", ageGroupId: "ag1", activityId: "art", blockIndex: 2, dayOfWeek: 3 },
@@ -121,7 +121,7 @@ describe("scheduling adapter factories", () => {
   });
 
   it("flexible-slots returns conflicts when tutor busy", async () => {
-    const conflictAdapters = createSchedulingAdapters(createConflictingRepository());
+    const conflictAdapters = createSchedulingStrategies(createConflictingRepository());
     const adapter = conflictAdapters.find((a) => a.id === "flexible-slots")!;
     const result = (await adapter.execute(
       { tutorId: "t1", studentId: "s1", requestedTime: "15:00", duration: 45, subject: "math" },
@@ -135,7 +135,7 @@ describe("scheduling adapter factories", () => {
 
 describe("fee adapter factories", () => {
   const repo = createMockRepository();
-  const adapters = createFeeAdapters(repo);
+  const adapters = createFeeStrategies(repo);
 
   it("creates 5 fee adapters", () => {
     expect(adapters).toHaveLength(5);

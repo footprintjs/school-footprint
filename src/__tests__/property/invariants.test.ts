@@ -5,7 +5,7 @@ import { createMemoryProfileStore, createTenantContext } from "@footprint/platfo
 import { createMockRepository } from "../helpers.js";
 import { schoolTerminology } from "../../terminology/schoolTerms.js";
 import { allSchoolProfiles, schoolTypeConfigs } from "../../profiles/index.js";
-import { createSchedulingAdapters, createFeeAdapters } from "../../adapters/index.js";
+import { createSchedulingStrategies, createFeeStrategies } from "../../strategies/index.js";
 import { createMemoryOverrideStore } from "../../overrides/unitOverrides.js";
 import type { SchoolType } from "../../types.js";
 
@@ -86,23 +86,23 @@ describe("property: profile invariants", () => {
 
 describe("property: adapter factory invariants", () => {
   it("scheduling adapters always produces exactly 5 adapters for any repo", () => {
-    const adapters = createSchedulingAdapters(repo);
+    const adapters = createSchedulingStrategies(repo);
     expect(adapters).toHaveLength(5);
   });
 
   it("fee adapters always produces exactly 5 adapters for any repo", () => {
-    const adapters = createFeeAdapters(repo);
+    const adapters = createFeeStrategies(repo);
     expect(adapters).toHaveLength(5);
   });
 
   it("all scheduling adapter IDs are unique", () => {
-    const adapters = createSchedulingAdapters(repo);
+    const adapters = createSchedulingStrategies(repo);
     const ids = adapters.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("all fee adapter IDs are unique", () => {
-    const adapters = createFeeAdapters(repo);
+    const adapters = createFeeStrategies(repo);
     const ids = adapters.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
@@ -110,7 +110,7 @@ describe("property: adapter factory invariants", () => {
   it("no conflict → scheduling adapters return scheduled=true for arbitrary teacher IDs", async () => {
     await fc.assert(
       fc.asyncProperty(fc.string({ minLength: 1, maxLength: 20 }), async (teacherId) => {
-        const adapters = createSchedulingAdapters(createMockRepository());
+        const adapters = createSchedulingStrategies(createMockRepository());
         const adapter = adapters.find((a) => a.id === "fixed-timetable")!;
         const result = (await adapter.execute(
           { teacherId, classId: "c1", dayOfWeek: 1, periodId: "P1" },

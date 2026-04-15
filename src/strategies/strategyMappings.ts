@@ -1,11 +1,11 @@
 import type { AdapterMapping } from "@footprint/adapters";
 
 /**
- * Maps capabilities to adapters per school type.
+ * Maps capabilities to strategies per school type.
  * This is where "Shopify for Schools" configurability lives —
- * the same operation routes to a different implementation per school type.
+ * the same operation routes to a different strategy per school type.
  */
-export const schoolAdapterMappings: readonly AdapterMapping[] = [
+export const schoolStrategyMappings: readonly AdapterMapping[] = [
   {
     capabilityId: "schedule-class",
     profileAdapters: {

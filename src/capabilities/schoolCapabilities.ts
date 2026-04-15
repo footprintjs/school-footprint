@@ -2,7 +2,7 @@ import type { Capability } from "@footprint/adapters";
 
 /**
  * School-domain capability contracts.
- * Each capability defines WHAT needs to be done — adapters define HOW.
+ * Each capability defines WHAT needs to be done — strategies define HOW.
  */
 
 export const scheduleClass: Capability = {

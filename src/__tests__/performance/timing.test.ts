@@ -3,7 +3,7 @@ import { createSchoolPlatform } from "../../schoolPlatform.js";
 import { createMemoryProfileStore, createTenantContext } from "@footprint/platform";
 import { createMockRepository } from "../helpers.js";
 import { createSchoolServiceRegistry } from "../../flows/schoolServiceComposer.js";
-import { createSchedulingAdapters, createFeeAdapters } from "../../adapters/index.js";
+import { createSchedulingStrategies, createFeeStrategies } from "../../strategies/index.js";
 
 const SCHOOL_TYPES = ["k12", "dance", "music", "kindergarten", "tutoring"] as const;
 
@@ -124,7 +124,7 @@ describe("performance: registry caching", () => {
 describe("performance: adapter factory creation", () => {
   it("creating scheduling adapters completes within 10ms", () => {
     const start = performance.now();
-    createSchedulingAdapters(repo);
+    createSchedulingStrategies(repo);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(10);
@@ -132,7 +132,7 @@ describe("performance: adapter factory creation", () => {
 
   it("creating fee adapters completes within 10ms", () => {
     const start = performance.now();
-    createFeeAdapters(repo);
+    createFeeStrategies(repo);
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(10);

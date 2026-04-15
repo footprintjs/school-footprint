@@ -14,10 +14,10 @@ import { allSchoolModules } from "./modules/index.js";
 import { allSchoolProfiles, schoolTypeConfigs } from "./profiles/index.js";
 import { allSchoolCapabilities } from "./capabilities/index.js";
 import {
-  createSchedulingAdapters,
-  createFeeAdapters,
-  schoolAdapterMappings,
-} from "./adapters/index.js";
+  createSchedulingStrategies,
+  createFeeStrategies,
+  schoolStrategyMappings,
+} from "./strategies/index.js";
 import { allSchoolActions } from "./actions/index.js";
 import { createSchoolServiceRegistry, buildActionDispatch } from "./flows/index.js";
 import type { SchoolServiceRegistry, SchoolServiceResult, ServiceDescription, BuiltServiceFlow, ActionDispatch } from "./flows/index.js";
@@ -109,13 +109,13 @@ export function createSchoolPlatform(config: SchoolPlatformConfig): SchoolPlatfo
   });
 
   // Create real adapter factories with repo access
-  const liveSchedulingAdapters = createSchedulingAdapters(config.repository);
-  const liveFeeAdapters = createFeeAdapters(config.repository);
+  const liveSchedulingAdapters = createSchedulingStrategies(config.repository);
+  const liveFeeAdapters = createFeeStrategies(config.repository);
 
   const adapterRegistry = createAdapterRegistry({
     capabilities: [...allSchoolCapabilities],
     adapters: [...liveSchedulingAdapters, ...liveFeeAdapters],
-    mappings: [...schoolAdapterMappings],
+    mappings: [...schoolStrategyMappings],
   });
 
   const actionRegistry = createActionRegistry({

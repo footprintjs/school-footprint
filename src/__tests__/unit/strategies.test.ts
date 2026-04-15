@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { createAdapterRegistry, createServiceBridge } from "@footprint/adapters";
 import { allSchoolCapabilities } from "../../capabilities/index.js";
-import { allSchedulingAdapters, allFeeAdapters, schoolAdapterMappings } from "../../adapters/index.js";
+import { allSchedulingStrategies, allFeeStrategies, schoolStrategyMappings } from "../../strategies/index.js";
 
 describe("school adapters", () => {
   const registry = createAdapterRegistry({
     capabilities: [...allSchoolCapabilities],
-    adapters: [...allSchedulingAdapters, ...allFeeAdapters],
-    mappings: [...schoolAdapterMappings],
+    adapters: [...allSchedulingStrategies, ...allFeeStrategies],
+    mappings: [...schoolStrategyMappings],
   });
 
   it("resolves fixed-timetable adapter for K-12 scheduling", () => {
@@ -63,10 +63,10 @@ describe("school adapters", () => {
   });
 
   it("5 scheduling adapters cover all school types", () => {
-    expect(allSchedulingAdapters).toHaveLength(5);
+    expect(allSchedulingStrategies).toHaveLength(5);
   });
 
   it("5 fee adapters cover all school types", () => {
-    expect(allFeeAdapters).toHaveLength(5);
+    expect(allFeeStrategies).toHaveLength(5);
   });
 });
