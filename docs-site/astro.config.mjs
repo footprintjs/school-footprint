@@ -23,6 +23,7 @@ export default defineConfig({
         {
           label: "Architecture",
           items: [
+            { label: "Walkthrough (Start Here)", slug: "architecture/walkthrough" },
             { label: "Overview (4 Layers)", slug: "architecture/overview" },
             { label: "Profile-Derived Context", slug: "architecture/pdc" },
             { label: "Strategies (Behavior Switching)", slug: "architecture/strategies" },

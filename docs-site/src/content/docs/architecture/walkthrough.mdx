@@ -1,0 +1,546 @@
+---
+title: Architecture Walkthrough
+description: Step-by-step explanation with a real-world analogy — from zero to full understanding
+sidebar:
+  order: 0
+---
+
+# Architecture Walkthrough
+
+This page explains the entire school-footprint architecture using a real-world analogy, then walks through 5 concrete scenarios step by step. By the end, you'll understand every layer.
+
+---
+
+## Step 0: The Restaurant Analogy
+
+Before any code, let's build intuition.
+
+Imagine you're building **"Shopify for Restaurants"** — one app that runs a McDonald's, a Sushi bar, and a Pizza shop. Same software, different everything else.
+
+```
+┌───────────────────────────────────────────────────────────┐
+│                    THREE RESTAURANTS                       │
+│                                                           │
+│   McDonald's          Sushi Bar           Pizza Shop       │
+│   ─────────           ────────            ──────────       │
+│   "Combo"             "Omakase Set"       "Pie"            │
+│   "Crew Member"       "Chef"              "Pizzaiolo"      │
+│   "Drive-thru"        "Counter"           "Delivery"       │
+│                                                           │
+│   ALL share:                                              │
+│   ✓ Take order → Prepare → Serve → Bill                  │
+│   ✓ Inventory tracking                                    │
+│   ✓ Staff scheduling                                      │
+│   ✓ Customer management                                   │
+│                                                           │
+│   Each DIFFERS in:                                        │
+│   ✗ Menu items (burger vs sushi vs pizza)                 │
+│   ✗ Terminology ("combo" vs "set" vs "pie")              │
+│   ✗ Prep workflow (grill vs slice vs oven)               │
+│   ✗ Scheduling (shifts vs reservations vs delivery)      │
+│   ✗ Theme/branding (red vs black vs green)               │
+└───────────────────────────────────────────────────────────┘
+```
+
+**The insight**: the process is the same, but the details differ. You don't write three separate apps — you write one app where a *profile* drives the differences.
+
+### Now replace restaurants with schools
+
+| Restaurant Concept | School Concept | What it is in code |
+|---|---|---|
+| Restaurant type (McDonald's, Sushi) | School type (K-12, Dance) | `SchoolType` — a string that drives everything |
+| Menu ("Combo", "Set", "Pie") | Terminology ("Student" → "Dancer") | `schoolTerminology` — 16 labels per school type |
+| Recipe (grill 3min, flip, serve) | Flow (validate → check → create) | `flowChart()` — a pipeline of traced stages |
+| Kitchen equipment (grill vs oven) | Strategy (fixed-timetable vs time-slots) | `strategies/` — same goal, different business logic |
+| Order process (counter vs drive-thru) | Scheduling pattern | `SchedulingPattern` — how time is organized |
+| Franchise HQ template | Profile (modules, theme, terms) | `danceProfile` — one object, everything configured |
+| "Take order" action | "Enroll student" action | `actions/` — what users can do |
+
+**Key distinction**:
+- **Strategy** = different *business logic* for the same capability (like different recipes)
+- **Repository** = different *database* connection (like different kitchens)
+- These are separate layers. Strategies use the *same* database through the *same* repository interface.
+
+---
+
+## Step 1: You Open a Dance School
+
+You tell the system: **"I'm a dance school."**
+
+That single statement triggers a cascade of configuration:
+
+```
+Input:  schoolType = "dance"
+
+What happens internally:
+┌────────────────────────────────────────────────────────┐
+│  danceProfile says:                                     │
+│                                                         │
+│  ✓ Modules ON:  students, academics, attendance,        │
+│                 scheduling, fees                         │
+│  ✗ Modules OFF: departments, workflow                    │
+│                                                         │
+│  Terminology:                                            │
+│    "Student"  → "Dancer"                                 │
+│    "Teacher"  → "Instructor"                             │
+│    "Grade"    → "Level"                                  │
+│    "Section"  → "Style"                                  │
+│    "Period"   → "Time Slot"                              │
+│                                                         │
+│  Scheduling:  time-slots (not fixed-timetable)           │
+│  Theme:       rose (#c0506a)                             │
+│  Fee model:   per-class (not per-term)                   │
+│                                                         │
+│  Change "dance" to "k12" and ALL of this changes.        │
+│  Zero code changes. Just a different profile.            │
+└────────────────────────────────────────────────────────┘
+```
+
+**In code — this is the entire setup:**
+
+```typescript
+import { createSchoolPlatform, createMemoryProfileStore } from "school-footprint";
+
+const platform = createSchoolPlatform({
+  profileStore: createMemoryProfileStore([
+    { unitId: "studio-1", profileType: "dance", createdAt: "2024-01-01" },
+  ]),
+  repository: myDatabaseAdapter,  // your Prisma/Mongo/etc. implementation
+});
+```
+
+**What just happened?**
+1. The profile `"dance"` was looked up
+2. It activated 5 modules (students, academics, attendance, scheduling, fees)
+3. It mapped `"schedule-class"` → the `time-slots` strategy
+4. It mapped `"calculate-fees"` → the `per-class` strategy
+5. It loaded dance terminology (Dancer, Instructor, Level, Style, Time Slot)
+6. It set the theme to rose
+
+**All from one string: `"dance"`.**
+
+---
+
+## Step 2: A Parent Enrolls Their Child
+
+The parent fills a form: **"Enroll Alice in Ballet."**
+
+### Step 2a: Find the right flow
+
+```
+Action: "enroll-student"
+Input:  { firstName: "Alice", lastName: "Smith" }
+```
+
+The system looks up the ActionFlowRegistry:
+
+```
+┌─────────────────────────────────────────────────┐
+│  ActionFlowRegistry:                             │
+│                                                  │
+│  "enroll-student" → {                            │
+│     default: createEnrollmentFlow    ← this one  │
+│     variants: {}                                 │
+│  }                                               │
+│                                                  │
+│  No dance-specific enrollment variant exists,    │
+│  so the default flow is used.                    │
+│                                                  │
+│  If you wanted dance schools to have a different │
+│  enrollment process, you'd add:                  │
+│    variants: { dance: createDanceEnrollmentFlow } │
+│  That's it. One line.                            │
+└─────────────────────────────────────────────────┘
+```
+
+### Step 2b: Build the flow
+
+footprintjs builds a pipeline of stages:
+
+```
+flowChart("Validate-Input")          ← "Check required fields"
+    │
+    ▼
+"Prepare-Context"                    ← "Resolve family linkage"
+    │
+    ▼
+"Enroll-Student"                     ← calls repo.createStudent()
+    │
+    ▼
+"Link-Grade"                         ← assigns to Level
+                                       (not "Grade" — dance terminology!)
+```
+
+Each stage has a **description** (the text after ←). This description powers:
+- The narrative output (human-readable trace)
+- AI understanding (LLMs read descriptions to reason about the flow)
+- The `describeService()` API (planning before execution)
+
+### Step 2c: Run it
+
+footprintjs executes each stage and records everything:
+
+```
+┌──────────────────────────────────────────────────────┐
+│  FlowChartExecutor.run()                              │
+│                                                       │
+│  Stage 1: Validate-Input                              │
+│    → Read input.firstName = "Alice"          ✓        │
+│    → Read input.lastName = "Smith"           ✓        │
+│    → Wrote validatedName = "Alice Smith"              │
+│                                                       │
+│  Stage 2: Prepare-Context                             │
+│    → Read input.familyId = undefined                  │
+│    → Wrote familyLink = null                          │
+│                                                       │
+│  Stage 3: Enroll-Student                              │
+│    → Called repo.createStudent(...)                    │
+│    → Wrote createdStudent = {id: 42, ...}             │
+│                                                       │
+│  Stage 4: Link-Grade                                  │
+│    → Read input.gradeId = undefined                   │
+│    → Skipped (no Level specified)                     │
+│                                                       │
+│  ✅ Result: {status: "ok", studentId: 42}             │
+└──────────────────────────────────────────────────────┘
+```
+
+**What you get automatically (no extra code):**
+- **Narrative**: "Step 1: Validate-Input — Check required fields. Wrote validatedName: Alice Smith"
+- **Metrics**: validate-input: 2ms, enroll-student: 15ms
+- **Snapshot**: full state tree of every read and write
+- **Manifest**: structural description of what the flow does
+
+---
+
+## Step 3: The Instructor Schedules a Class
+
+The instructor says: **"Put Ballet Basics on Monday, Time Slot P1."**
+
+### Step 3a: Find the right strategy
+
+This is where the **strategy pattern** matters:
+
+```
+Action: "schedule-class"
+School type: "dance"
+
+Strategy mapping looks up:
+┌─────────────────────────────────────────────────┐
+│                                                  │
+│  k12          → fixed-timetable strategy         │
+│                  (rigid weekly grid, periods)     │
+│                                                  │
+│  dance        → time-slots strategy      ← THIS  │
+│                  (flexible start/end, drop-ins)   │
+│                                                  │
+│  music        → appointments strategy            │
+│                  (1-on-1 lesson booking)          │
+│                                                  │
+│  kindergarten → activity-blocks strategy         │
+│                  (morning/afternoon blocks)       │
+│                                                  │
+│  tutoring     → flexible-slots strategy          │
+│                  (any available window)           │
+│                                                  │
+│  Same "schedule-class" action.                   │
+│  Five completely different behaviors.            │
+│  No if/switch anywhere.                          │
+└─────────────────────────────────────────────────┘
+```
+
+### Step 3b: Build the scheduling flow
+
+This flow has a **decision point** — footprintjs handles branching:
+
+```
+flowChart("Validate-Assignment")
+    │    "Ensure Instructor and class exist"
+    ▼
+"Check-Conflicts"
+    │    "Query for double-bookings"
+    ▼
+◆ "Conflict-Decision"              ← footprintjs decider!
+    │    decide(): conflicts.length === 0?
+    │
+    ├── YES (no-conflict) ──▶ "Create-Entry"
+    │                         repo.createScheduleEntry()
+    │                         status: "scheduled"
+    │
+    └── NO (has-conflict) ──▶ "Report-Conflict"
+                              return conflict details
+                              status: "blocked"
+```
+
+The `◆` symbol means this is a **decider stage** — footprintjs records which branch was taken and why.
+
+### Step 3c: What footprintjs records automatically
+
+```
+Narrative (human-readable):
+
+  "Step 1: Validate-Assignment
+     — Ensure Instructor and class exist
+     Wrote teacherId: T1
+     Wrote classId: ballet-basics
+
+   Step 2: Check-Conflicts
+     — Query for double-bookings
+     Wrote conflicts: []
+
+   Decision Conflict-Decision:
+     chose 'no-conflict'
+
+   Step 3: Create-Entry
+     Wrote scheduleEntry: {id: 99, ...}
+     Wrote status: scheduled"
+```
+
+**With NarrativeRenderer (dance terms)**:
+The output says "Instructor" instead of "Teacher", "Time Slot" instead of "Period", "Style" instead of "Section". The narrative is school-aware.
+
+---
+
+## Step 4: Something Goes Wrong — Explain It
+
+The next day, Instructor T1 is double-booked. The admin asks: **"Why?"**
+
+This is where **trace analysis** (causal chain) comes in:
+
+```
+explainResult(executor, "conflictDetected")
+
+Traces BACKWARD through the commit log:
+
+"conflictDetected"
+  ← was written by "Detect-Conflict" stage
+    ← which READ "roomAssignment"
+      ← was written by "Assign-Room" stage
+        ← which READ "teacherSchedule"
+          ← was written by "Load-Teacher" stage
+
+Summary:
+"conflictDetected ← Assign-Room#3
+   ← Load-Teacher#1 ← Load-Periods#0"
+
+Root cause: Load-Teacher loaded stale schedule data
+before the other booking was committed.
+```
+
+**How this works:**
+1. Every stage's reads and writes are recorded in a **commit log**
+2. `explainResult()` walks backward: "who wrote this key? what did *they* read? who wrote *those* keys?"
+3. It builds a **causal chain** — the minimum set of stages that contributed to the result
+4. An AI agent (or a human admin) can read the chain to understand the root cause
+
+**No extra code needed.** The tracing is automatic because every flow runs through footprintjs.
+
+---
+
+## Step 5: Approval Needed — Pause/Resume
+
+A new enrollment needs principal approval because the class is at capacity:
+
+```
+Flow runs normally until the approval stage:
+
+Stage 1: Intake              ✓ completed
+  → Collected student name, requested level
+
+Stage 2: Validate            ✓ completed
+  → Checked required fields, capacity status
+
+Stage 3: Admin-Review        ⏸ PAUSED
+  │
+  │  buildReviewPayload() returns:
+  │  {
+  │    studentName: "Alice",
+  │    requestedLevel: "Level 3",
+  │    reason: "Class is at capacity"
+  │  }
+  │
+  │  This data is shown to the principal in the UI.
+  │  A checkpoint is saved to the database.
+  │  (It's JSON — no functions, no class instances.)
+  │
+  ▼
+── TIME PASSES (hours or days) ──
+  │
+  │  Principal opens the approval queue.
+  │  Sees: "Alice wants Level 3, class at capacity."
+  │  Clicks "Approve" with note: "Override — exceptional talent"
+  │
+  │  decision = {
+  │    approved: true,
+  │    notes: "Override granted — exceptional talent"
+  │  }
+  │
+  ▼
+Stage 3: Admin-Review        ▶ RESUMED
+  │  applyDecision() sets scope.approved = true
+  │  scope.reviewNotes = "Override granted..."
+  │
+Stage 4: Finalize            ✓ completed
+  │  status = "enrolled" (because approved = true)
+  │
+✅ Done — Alice is enrolled
+```
+
+**What makes this special:**
+- The checkpoint is **JSON-serializable** — store it in Postgres, Redis, or even localStorage
+- Resume can happen on a **different server** — the checkpoint carries all state
+- The **narrative continues** across pause/resume — you get one continuous trace
+- The **pause is conditional** — `buildReviewPayload()` can return `undefined` to skip the pause
+
+---
+
+## The Full Picture
+
+Here's everything connected on one page:
+
+```
+┌────────────────── HOW IT ALL CONNECTS ──────────────────┐
+│                                                          │
+│  Admin says: "I run a dance school"                      │
+│       │                                                  │
+│       ▼                                                  │
+│  ┌─ PROFILE ────────────────────────────────────────┐   │
+│  │  danceProfile = {                                 │   │
+│  │    modules: [students, academics, attendance,     │   │
+│  │              scheduling, fees]                    │   │
+│  │    scheduling: "time-slots"                       │   │
+│  │    theme: rose                                    │   │
+│  │    terms: {student→Dancer, grade→Level}           │   │
+│  │  }                                                │   │
+│  └──────┬──────────────┬──────────────┬─────────────┘   │
+│         │              │              │                   │
+│         ▼              ▼              ▼                   │
+│  ┌─ MODULES ─┐  ┌─ STRATEGIES ┐  ┌─ TERMINOLOGY ──┐    │
+│  │ Which      │  │ Which       │  │ What words     │    │
+│  │ features   │  │ business    │  │ appear in UI   │    │
+│  │ are ON     │  │ logic each  │  │ and narrative  │    │
+│  │            │  │ capability  │  │                │    │
+│  │ ✓ students │  │ uses        │  │ "Dancer" not   │    │
+│  │ ✓ academics│  │             │  │ "Student"      │    │
+│  │ ✓ attend.  │  │ schedule    │  │                │    │
+│  │ ✓ schedule │  │ → time-slots│  │ "Level" not    │    │
+│  │ ✓ fees     │  │             │  │ "Grade"        │    │
+│  │ ✗ depts    │  │ fees        │  │                │    │
+│  │ ✗ workflow │  │ → per-class │  │ "Time Slot"    │    │
+│  └────────────┘  └─────────────┘  │ not "Period"   │    │
+│                                    └────────────────┘    │
+│         │              │              │                   │
+│         └──────────────┼──────────────┘                   │
+│                        │                                  │
+│                        ▼                                  │
+│  ┌─ USER ACTION ────────────────────────────────────┐   │
+│  │  "Schedule Ballet Basics for Monday P1"           │   │
+│  │                                                   │   │
+│  │  1. Registry finds: schedule-class flow           │   │
+│  │  2. Strategy maps:  dance → time-slots            │   │
+│  │  3. Flow builds:    Validate → Check → Decide     │   │
+│  │  4. Executor runs:  footprintjs DFS traversal     │   │
+│  │  5. Recorders log:  metrics, narrative, quality   │   │
+│  │  6. Result:         { status: "scheduled" }       │   │
+│  └───────────────────────────────────────────────────┘   │
+│                                                          │
+│  ┌─ IF SOMETHING GOES WRONG ────────────────────────┐   │
+│  │  explainResult(executor, "conflict")              │   │
+│  │  → "conflict ← Assign-Room#3 ← Load-Teacher#1"   │   │
+│  │  → Root cause: stale teacher schedule             │   │
+│  └───────────────────────────────────────────────────┘   │
+│                                                          │
+│  ┌─ IF HUMAN APPROVAL NEEDED ───────────────────────┐   │
+│  │  Flow PAUSES → checkpoint saved → admin reviews   │   │
+│  │  → admin approves → flow RESUMES → done           │   │
+│  └───────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+## The Key Takeaway
+
+**One profile drives everything.** Change `"dance"` to `"k12"` and:
+
+| What changes | Dance → K-12 |
+|---|---|
+| Modules | departments + workflow turn **ON** |
+| Terminology | "Dancer" → "Student", "Level" → "Grade" |
+| Scheduling strategy | time-slots → fixed-timetable |
+| Fee strategy | per-class → per-term |
+| Theme | rose → teal |
+| **Code changes** | **Zero** |
+
+Same flows. Same actions. Same infrastructure. Different profile.
+
+---
+
+## The 4-Layer Stack
+
+Everything above lives in a clean 4-layer architecture:
+
+```
+Layer 4: sis-platform
+  │  Fastify + Prisma + React
+  │  This is the ONLY layer with framework coupling.
+  │  HTTP routes, database queries, React components.
+  │
+Layer 3: school-footprint          ← YOU ARE HERE
+  │  Pure domain. Zero framework imports.
+  │  Modules, strategies, flows, terminology.
+  │  428 tests run without a database.
+  │
+Layer 2: @footprint/* blueprint
+  │  Pure registries. Domain-agnostic.
+  │  Doesn't know what a "Student" or "Grade" is.
+  │  Just knows about modules, profiles, capabilities.
+  │
+Layer 1: footprintjs
+     Flow execution engine. Zero dependencies.
+     Builds pipelines, runs stages, records everything.
+```
+
+**The rule**: each layer depends only on the layer below. Never upward.
+
+- school-footprint **never** imports Fastify or Prisma
+- @footprint/* **never** imports school-footprint
+- footprintjs **never** imports anything
+
+This means you can:
+- Test school-footprint without a database (428 tests prove it)
+- Swap Fastify for Express (only Layer 4 changes)
+- Use school-footprint in a CLI tool, serverless function, or test harness
+- Have an LLM understand your flows (every stage has narrative + trace)
+
+---
+
+## Where footprintjs IS and IS NOT Used
+
+| Component | Uses footprintjs? | Why / Why not |
+|---|---|---|
+| **8 flow files** | **YES** | These ARE the pipelines |
+| **serviceComposer** | **YES** | Runs flows via FlowChartExecutor |
+| modules/ | No | Pure config objects — just data |
+| profiles/ | No | Pure config objects — just data |
+| strategies/ | No | Pure functions — call repo directly |
+| terminology/ | No | Pure data — term → label mappings |
+| types.ts | No | Pure TypeScript interfaces |
+| narrative/ | No | Returns renderer object (consumer attaches) |
+| pause/ | No | Returns handler tuple (consumer passes to builder) |
+| trace/ | No | Reads executor snapshot (duck-typed) |
+| helpers.ts | No | Utility wrappers |
+
+**Key insight**: footprintjs runs in only ~10% of the codebase. Everything else is pure configuration and functions. This is why 420 of the 428 tests don't even create a `FlowChartExecutor`.
+
+---
+
+## Next Steps
+
+Now that you understand the architecture:
+
+- **[Quick Start](/school-footprint/getting-started/quick-start/)** — build a platform in 5 minutes
+- **[Profile-Derived Context](/school-footprint/architecture/pdc/)** — deep dive into how profiles work
+- **[Strategies](/school-footprint/architecture/strategies/)** — how behavior switching works
+- **[Flow Execution](/school-footprint/architecture/flows/)** — all 8 flows explained
+- **[Examples](https://github.com/footprintjs/school-footprint/tree/main/examples)** — 7 runnable TypeScript examples
