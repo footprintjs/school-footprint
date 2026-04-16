@@ -4,7 +4,7 @@ Configurable SIS engine for any school type. "Shopify for Schools" — configura
 
 ## Core Principle
 
-**Profile-Derived Context (PDC):** One profile definition derives modules, adapters, terminology, theme, scheduling pattern, and flow variants. Adding a school type = one profile, zero code changes in routes or services.
+**Profile-Derived Context (PDC):** One profile definition derives modules, strategies, terminology, theme, scheduling pattern, and flow variants. Adding a school type = one profile, zero code changes in routes or services.
 
 ## Architecture
 
@@ -17,7 +17,10 @@ src/
 ├── profiles/           → 5 school types (k12, dance, music, kindergarten, tutoring)
 ├── capabilities/       → 5 capability definitions (scheduleClass, checkAvailability, etc.)
 ├── terminology/        → 16 configurable term keys with per-school-type labels
-├── adapters/           → 10 adapters (5 scheduling + 5 fee) with capability mapping
+├── strategies/         → 10 strategies (5 scheduling + 5 fee) with capability mapping
+├── narrative/          → School-specific NarrativeRenderer (term replacement)
+├── pause/              → Approval workflow (Pause/Resume with checkpoints)
+├── trace/              → Causal chain analysis + quality scoring
 ├── actions/            → 8 action definitions for MCP export
 ├── flows/              → 8 footprintjs service flows + ActionFlowRegistry + ActionDispatch
 │   └── schoolServiceComposer.ts  → Core: registry, dispatch, execution (521 lines)
