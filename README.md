@@ -1,5 +1,7 @@
 # school-footprint
 
+**Beta — APIs may change. Not published on npm; use the source setup below.**
+
 **Shopify for Schools** — configurable SIS engine for any school type.
 
 One codebase. Five school types. Zero code changes to switch.
