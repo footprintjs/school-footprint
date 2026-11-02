@@ -1,7 +1,7 @@
 {
   "name": "school-footprint",
   "version": "0.1.0",
-  "description": "School-domain wrapper for footprint-blueprint — configurable SIS engine for any school type",
+  "description": "Beta: School-domain TypeScript workflows and profile configuration for SIS platforms, with scheduling, fees, terminology and recorded service flows.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -25,5 +25,23 @@
     "typescript": "^5.4.0",
     "vitest": "^2.1.0"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "typescript",
+    "school",
+    "sis",
+    "school-management",
+    "configuration",
+    "workflow",
+    "footprintjs",
+    "beta"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/footprintjs/school-footprint.git"
+  },
+  "homepage": "https://github.com/footprintjs/school-footprint#readme",
+  "bugs": {
+    "url": "https://github.com/footprintjs/school-footprint/issues"
+  }
 }

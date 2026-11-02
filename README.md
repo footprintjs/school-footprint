@@ -1,11 +1,20 @@
 # school-footprint
 
+**Beta — APIs may change. Not published on npm; use the source setup below.**
+
 **Shopify for Schools** — configurable SIS engine for any school type.
 
 One codebase. Five school types. Zero code changes to switch.
 
-[![Tests](https://img.shields.io/badge/tests-428%20passing-brightgreen)]()
-[![footprintjs](https://img.shields.io/badge/footprintjs-4.12.2-blue)](https://www.npmjs.com/package/footprintjs)
+For developers implementing configurable student-information systems with application-owned repositories.
+
+**Source/workspace checkout:** `school-footprint` is not published on npm. This package declares six `@footprint/*` dependencies as `workspace:*`; a standalone clone cannot install those from the public registry. Its engine declaration targets the older `footprintjs@^4.0.4` API, not the current major.
+
+## Workspace prerequisites
+
+Use a compatible containing workspace that supplies `@footprint/actions`, `adapters`, `features`, `platform`, `seed` and `tenancy`, and build those dependencies before this package. The retained pnpm lockfile points to historical sibling `footprint-blueprint/packages/*` paths; today's consolidated Blueprint package is not a drop-in replacement for those workspace names. This checkout does not include a complete reproducible workspace setup.
+
+Once that workspace is prepared, the package scripts are `npm run build`, `npm run typecheck` and `npm test`. The examples below describe this source API; they are not a claim that standalone installation or current-major migration has passed. Applications supply persistence, authorization and deployment integration.
 
 ## Documentation
 
@@ -125,7 +134,7 @@ src/
 ## Tests
 
 ```bash
-npm test   # 428 tests, zero database required
+npm test   # from the prepared compatible workspace
 ```
 
 5 categories: unit · scenario · property · performance · security
